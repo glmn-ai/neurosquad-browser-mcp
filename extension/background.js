@@ -259,32 +259,35 @@ function showGlow() {
          slowly breathing between emerald, mint and teal. */
       .ring {
         position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;
+        /* Rounded corners: the inset glow follows the radius instead of
+           meeting in a sharp corner. */
+        border-radius: 28px;
         opacity: 0; transition: opacity .6s ease;
         box-shadow:
-          inset 0 0 18px 2px rgba(16, 255, 156, .55),
-          inset 0 0 60px 10px rgba(16, 185, 129, .28),
-          inset 0 0 120px 24px rgba(16, 185, 129, .12);
-        animation: breathe 7s ease-in-out infinite alternate;
+          inset 0 0 20px 3px rgba(16, 255, 156, .6),
+          inset 0 0 64px 12px rgba(16, 185, 129, .3),
+          inset 0 0 130px 26px rgba(16, 185, 129, .13);
+        animation: breathe 4.5s ease-in-out infinite;
       }
       .ring.on { opacity: 1; }
       @keyframes breathe {
-        0% {
+        0%, 100% {
           box-shadow:
-            inset 0 0 18px 2px rgba(16, 255, 156, .55),
-            inset 0 0 60px 10px rgba(16, 185, 129, .28),
-            inset 0 0 120px 24px rgba(16, 185, 129, .12);
+            inset 0 0 20px 3px rgba(16, 255, 156, .6),
+            inset 0 0 64px 12px rgba(16, 185, 129, .3),
+            inset 0 0 130px 26px rgba(16, 185, 129, .13);
         }
-        50% {
+        33% {
           box-shadow:
-            inset 0 0 22px 3px rgba(52, 211, 153, .6),
-            inset 0 0 70px 12px rgba(34, 211, 238, .24),
-            inset 0 0 130px 26px rgba(20, 184, 166, .12);
+            inset 0 0 26px 4px rgba(34, 211, 238, .62),
+            inset 0 0 76px 14px rgba(6, 182, 212, .3),
+            inset 0 0 140px 28px rgba(20, 184, 166, .14);
         }
-        100% {
+        66% {
           box-shadow:
-            inset 0 0 20px 2px rgba(163, 230, 53, .5),
-            inset 0 0 64px 11px rgba(16, 185, 129, .26),
-            inset 0 0 125px 25px rgba(52, 211, 153, .12);
+            inset 0 0 22px 3px rgba(163, 230, 53, .6),
+            inset 0 0 68px 13px rgba(132, 204, 22, .28),
+            inset 0 0 135px 27px rgba(52, 211, 153, .13);
         }
       }
       @media (prefers-reduced-motion: reduce) { .ring { animation: none; } }
