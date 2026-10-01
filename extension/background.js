@@ -258,7 +258,7 @@ function showGlow() {
       /* Brightness depends only on the distance to a rounded edge: 32 thin
          inset contours (no blur), denser near the edge, each following the
          28px radius at its own depth. The corner beyond the radius is filled
-         with exactly the edge's composite alpha 1-(1-0.031)^32 = 0.635, so
+         with exactly the edge's composite alpha 1-(1-0.016)^32 = 0.403, so
          corners and edges match by arithmetic, not by eye. Colour drift and
          the breath are filters on two wrappers. */
       .ring {
@@ -272,39 +272,39 @@ function showGlow() {
       .glow {
         position: absolute; inset: 0; border-radius: 28px;
         box-shadow:
-          0 0 0 60px rgba(18, 230, 160, 0.635),
-          inset 0 0 0 1px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 1px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 1px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 2px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 3px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 5px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 6px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 8px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 10px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 13px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 15px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 18px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 21px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 25px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 29px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 32px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 37px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 41px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 46px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 51px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 56px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 61px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 67px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 73px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 79px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 86px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 93px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 100px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 107px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 114px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 122px rgba(18, 230, 160, 0.031),
-          inset 0 0 0 130px rgba(18, 230, 160, 0.031);
+          0 0 0 60px rgba(18, 230, 160, 0.403),
+          inset 0 0 0 1px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 1px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 1px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 2px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 3px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 5px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 6px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 8px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 10px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 13px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 15px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 18px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 21px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 25px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 29px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 32px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 37px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 41px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 46px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 51px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 56px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 61px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 67px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 73px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 79px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 86px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 93px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 100px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 107px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 114px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 122px rgba(18, 230, 160, 0.016),
+          inset 0 0 0 130px rgba(18, 230, 160, 0.016);
       }
       @keyframes hue {
         0%, 100% { filter: hue-rotate(0deg); }
