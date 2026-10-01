@@ -241,3 +241,14 @@ before the update.
 - If no MCP session is running (no server process), the extension will
   just keep retrying the WebSocket connection in the background; no action
   is needed once a session starts again.
+
+## 1.2.0 — strict-CSP pages and file uploads
+
+- `browser_execute_script` runs through the DevTools protocol (`chrome.debugger`,
+  `Runtime.evaluate`) when the page's CSP forbids `eval` (x.com, github.com…).
+  Chrome shows "WebMCP Bridge started debugging this browser" for the moment of
+  the call.
+- `browser_upload_files({ selector, paths })` sets local files on an
+  `<input type=file>` (CDP `DOM.setFileInputFiles`) — attachments, uploads.
+- Default port is **47615** (was 8765, which NeuroSquad's remote access also
+  uses); a saved 8765 in the extension is forgotten.
