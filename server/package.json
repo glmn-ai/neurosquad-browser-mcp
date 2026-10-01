@@ -1,6 +1,6 @@
 {
   "name": "webmcp-server",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "MCP server bridging opencode to a Chrome extension for browser page inspection/automation",
   "type": "module",
   "main": "src/index.js",

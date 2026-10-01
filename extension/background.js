@@ -333,13 +333,35 @@ const handlers = {
       target: { tabId },
       world: "MAIN",
       func: (code) => {
-        // eslint-disable-next-line no-new-func
-        const fn = new Function(`return (async () => { ${code} })()`);
-        return fn();
+        try {
+          // eslint-disable-next-line no-new-func
+          const fn = new Function(`return (async () => { ${code} })()`);
+          return fn();
+        } catch (err) {
+          // A strict page CSP (no 'unsafe-eval': x.com, github.com…) forbids
+          // building code from a string here.
+          if (err instanceof EvalError) return { __webmcpCspBlocked: true };
+          throw err;
+        }
       },
       args: [code],
     });
+    if (result && result.__webmcpCspBlocked) return cdpEvaluate(tabId, code);
     return result;
+  },
+
+  // Puts local files into an <input type=file> (CDP DOM.setFileInputFiles) —
+  // the only way to attach files: a page script can't read the disk.
+  async uploadFiles({ tabId, selector, paths }) {
+    return withDebugger(tabId, async (target) => {
+      const found = await chrome.debugger.sendCommand(target, "Runtime.evaluate", {
+        expression: `document.querySelector(${JSON.stringify(selector)})`,
+      });
+      const objectId = found?.result?.objectId;
+      if (!objectId) throw new Error(`No element matches ${selector}`);
+      await chrome.debugger.sendCommand(target, "DOM.setFileInputFiles", { files: paths, objectId });
+      return { uploaded: paths.length, selector };
+    });
   },
 
   async screenshot({ tabId }) {
@@ -447,3 +469,31 @@ chrome.runtime.onStartup.addListener(() => connect());
 chrome.runtime.onInstalled.addListener(() => connect());
 
 connect();
+
+// chrome.debugger (CDP) for what the page's CSP or the sandbox forbids:
+// evaluating a code string, setting files on a file input. Attaches only for
+// the call; Chrome shows its "started debugging this browser" bar meanwhile.
+async function withDebugger(tabId, run) {
+  const target = { tabId };
+  await chrome.debugger.attach(target, "1.3");
+  try {
+    return await run(target);
+  } finally {
+    await chrome.debugger.detach(target).catch(() => {});
+  }
+}
+
+async function cdpEvaluate(tabId, code) {
+  return withDebugger(tabId, async (target) => {
+    const r = await chrome.debugger.sendCommand(target, "Runtime.evaluate", {
+      expression: `(async () => { ${code} })()`,
+      awaitPromise: true,
+      returnByValue: true,
+      userGesture: true,
+    });
+    if (r.exceptionDetails) {
+      throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
+    }
+    return r.result?.value;
+  });
+}

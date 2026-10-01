@@ -201,7 +201,7 @@ export function registerTools(server, bridge) {
     {
       title: "Execute JavaScript on the page",
       description:
-        "Execute arbitrary JavaScript in the context of the page (same world as the page's own scripts) and return the JSON-serializable result. The code runs as the body of an async function, so you can use `return` and top-level `await`.",
+        "Execute arbitrary JavaScript in the context of the page (same world as the page's own scripts) and return the JSON-serializable result. On pages whose CSP forbids eval (x.com, github.com) it runs through the DevTools protocol instead. The code runs as the body of an async function, so you can use `return` and top-level `await`.",
       inputSchema: {
         tabId: tabIdParam,
         code: z.string().describe("JavaScript source. Executed as `async () => { <code> }`."),
@@ -211,6 +211,29 @@ export function registerTools(server, bridge) {
       try {
         const id = await resolveTabId(bridge, tabId);
         const result = await bridge.request("executeScript", { tabId: id, code });
+        return text(result);
+      } catch (err) {
+        return errorText(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "browser_upload_files",
+    {
+      title: "Attach local files to a file input",
+      description:
+        "Set local files (absolute paths on this machine) on the <input type=file> matching a CSS selector, as if the user picked them (Chrome DevTools Protocol). Use it for uploads/attachments.",
+      inputSchema: {
+        tabId: tabIdParam,
+        selector: z.string().describe("CSS selector of the <input type=file>."),
+        paths: z.array(z.string()).min(1).describe("Absolute file paths to attach."),
+      },
+    },
+    async ({ tabId, selector, paths }) => {
+      try {
+        const id = await resolveTabId(bridge, tabId);
+        const result = await bridge.request("uploadFiles", { tabId: id, selector, paths });
         return text(result);
       } catch (err) {
         return errorText(err);
