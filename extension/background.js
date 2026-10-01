@@ -255,18 +255,38 @@ function showGlow() {
     const root = host.attachShadow({ mode: "closed" });
     root.innerHTML = `<style>
       :host { all: initial; }
+      /* An inner glow that fades from the window edge into the page (~90 px),
+         slowly breathing between emerald, mint and teal. */
       .ring {
         position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;
-        opacity: 0; transition: opacity .35s ease;
-        padding: 3px;
-        background: linear-gradient(90deg, #00ff9c, #22d3ee, #a3e635, #10b981, #00ff9c) 0 0 / 300% 100%;
-        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-        -webkit-mask-composite: xor; mask-composite: exclude;
-        animation: flow 2.4s linear infinite;
-        filter: drop-shadow(0 0 6px rgba(16,255,156,.75)) drop-shadow(0 0 14px rgba(16,185,129,.45));
+        opacity: 0; transition: opacity .6s ease;
+        box-shadow:
+          inset 0 0 18px 2px rgba(16, 255, 156, .55),
+          inset 0 0 60px 10px rgba(16, 185, 129, .28),
+          inset 0 0 120px 24px rgba(16, 185, 129, .12);
+        animation: breathe 7s ease-in-out infinite alternate;
       }
       .ring.on { opacity: 1; }
-      @keyframes flow { to { background-position: 300% 0; } }
+      @keyframes breathe {
+        0% {
+          box-shadow:
+            inset 0 0 18px 2px rgba(16, 255, 156, .55),
+            inset 0 0 60px 10px rgba(16, 185, 129, .28),
+            inset 0 0 120px 24px rgba(16, 185, 129, .12);
+        }
+        50% {
+          box-shadow:
+            inset 0 0 22px 3px rgba(52, 211, 153, .6),
+            inset 0 0 70px 12px rgba(34, 211, 238, .24),
+            inset 0 0 130px 26px rgba(20, 184, 166, .12);
+        }
+        100% {
+          box-shadow:
+            inset 0 0 20px 2px rgba(163, 230, 53, .5),
+            inset 0 0 64px 11px rgba(16, 185, 129, .26),
+            inset 0 0 125px 25px rgba(52, 211, 153, .12);
+        }
+      }
       @media (prefers-reduced-motion: reduce) { .ring { animation: none; } }
     </style><div class="ring"></div>`;
     (document.documentElement || document.body).appendChild(host);
