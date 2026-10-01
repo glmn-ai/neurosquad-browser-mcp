@@ -2,24 +2,39 @@ let wasConnected = false;
 
 async function refreshStatus() {
   const res = await chrome.runtime.sendMessage({ type: "get-status" }).catch(() => null);
+  const pill = document.getElementById("status");
   const dot = document.getElementById("status-dot");
+  const label = document.getElementById("status-label");
   const text = document.getElementById("status-text");
+  const statPid = document.getElementById("stat-pid");
+  const statSessions = document.getElementById("stat-sessions");
+  const statVersion = document.getElementById("stat-version");
   const portInput = document.getElementById("port");
 
-  dot.classList.remove("connected", "disconnected");
+  for (const el of [pill, dot]) el.classList.remove("connected", "disconnected");
 
   const isConnected = !!res?.connected;
+  const state = isConnected ? "connected" : "disconnected";
+  pill.classList.add(state);
+  dot.classList.add(state);
+  label.textContent = isConnected ? "Connected" : "Disconnected";
+
   if (isConnected) {
-    dot.classList.add("connected");
     const sessions = typeof res.peers === "number" ? res.peers + 1 : null;
-    text.textContent =
-      sessions === null
-        ? `Connected on port ${res.port}`
-        : `Connected on port ${res.port} · ${sessions} MCP session${sessions === 1 ? "" : "s"}`;
-    text.title = res.hubPid ? `Hub: webmcp server pid ${res.hubPid} (v${res.hubVersion})` : "";
+    text.textContent = `127.0.0.1:${res.port}`;
+    statSessions.textContent = sessions === null ? "—" : String(sessions);
+    statVersion.textContent = res.hubVersion ? `v${res.hubVersion}` : "—";
+    statPid.textContent = res.hubPid ? String(res.hubPid) : "—";
+    const hubInfo = res.hubPid ? `Hub: server pid ${res.hubPid} (v${res.hubVersion})` : "";
+    pill.title = hubInfo;
+    statVersion.title = hubInfo;
   } else {
-    dot.classList.add("disconnected");
-    text.textContent = `Disconnected (port ${res?.port ?? "?"})`;
+    text.textContent = `Nothing on port ${res?.port ?? "?"}`;
+    statPid.textContent = "—";
+    statSessions.textContent = "0";
+    statVersion.textContent = "—";
+    pill.title = "";
+    statVersion.title = "";
   }
 
   if (portInput && document.activeElement !== portInput) {
@@ -136,6 +151,7 @@ async function onClientAction(client) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("ext-version").textContent = `v${chrome.runtime.getManifest().version}`;
   refreshStatus();
   refreshClients();
 

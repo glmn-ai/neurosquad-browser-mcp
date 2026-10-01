@@ -28,7 +28,9 @@ const bridge = new ExtensionBridge({
   },
 });
 
-const server = new McpServer({ name: "webmcp", version: VERSION });
+// Shown to MCP clients as serverInfo. The client-side config key stays "webmcp"
+// (see clients.js ENTRY_NAME) so existing installs and tool names keep working.
+const server = new McpServer({ name: "neurosquad-browser-mcp", title: "NeuroSquad Browser MCP", version: VERSION });
 registerTools(server, bridge);
 
 let shuttingDown = false;

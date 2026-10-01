@@ -53,7 +53,7 @@ const jitter = (min, max) => min + Math.floor(Math.random() * (max - min));
 
 export function extensionNotConnectedError(port) {
   return new Error(
-    `Browser extension not connected — is Chrome open with WebMCP enabled? ` +
+    `Browser extension not connected — is Chrome open with the NeuroSquad Browser MCP extension enabled? ` +
       `(the extension should connect to ws://127.0.0.1:${port}; check the popup's port and status dot)`
   );
 }

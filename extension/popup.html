@@ -1,44 +1,80 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>WebMCP Bridge</title>
+    <title>NeuroSquad Browser MCP</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <h1>WebMCP Bridge</h1>
+    <header class="brand">
+      <svg class="brand-mark" viewBox="2.3 21.5 98 61" aria-hidden="true">
+        <defs>
+          <linearGradient id="ns-mark" x1="4.33" y1="0" x2="100.08" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#a3e635" />
+            <stop offset="1" stop-color="#10b981" />
+          </linearGradient>
+        </defs>
+        <g transform="translate(10,0) skewX(-11)">
+          <polyline points="14,32 32,52 14,72" fill="none" stroke="url(#ns-mark)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+        </g>
+        <g transform="translate(33.38,14.56) scale(0.72)">
+          <g transform="translate(9,0) skewX(-11)">
+            <polyline points="86,20 32,20 32,51 80,51 80,84 24,84" fill="none" stroke="url(#ns-mark)" stroke-width="15" stroke-linejoin="miter" stroke-miterlimit="4" />
+          </g>
+        </g>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-eyebrow">NeuroSquad</span>
+        <h1>Browser MCP</h1>
+      </div>
+      <span id="ext-version" class="chip mono"></span>
+    </header>
 
-    <div id="status" class="status">
-      <span id="status-dot" class="dot"></span>
-      <span id="status-text">Checking...</span>
-    </div>
+    <section class="card status-card">
+      <div class="status-row">
+        <span id="status" class="status-pill">
+          <span id="status-dot" class="dot"></span>
+          <span id="status-label">Checking…</span>
+        </span>
+        <span id="status-text" class="status-text"></span>
+      </div>
+      <dl class="stats">
+        <div class="stat">
+          <dt>Hub pid</dt>
+          <dd id="stat-pid" class="mono">—</dd>
+        </div>
+        <div class="stat">
+          <dt>MCP sessions</dt>
+          <dd id="stat-sessions" class="mono">—</dd>
+        </div>
+        <div class="stat">
+          <dt>Server</dt>
+          <dd id="stat-version" class="mono">—</dd>
+        </div>
+      </dl>
+      <div class="row port-row">
+        <label for="port" class="port-label">Port</label>
+        <input id="port" class="mono" type="number" min="1" max="65535" />
+        <button id="save" class="btn btn-primary">Save</button>
+        <button id="reconnect" class="btn btn-ghost">Reconnect</button>
+      </div>
+    </section>
 
-    <label for="port">Server port</label>
-    <div class="row">
-      <input id="port" type="number" min="1" max="65535" />
-      <button id="save">Save</button>
-    </div>
-
-    <button id="reconnect" class="secondary">Reconnect</button>
-
-    <p class="hint">
-      Connects to the local WebMCP MCP server started by opencode. Make sure opencode has the
-      <code>webmcp</code> MCP server configured and running, then the dot above should turn green.
-    </p>
-
-    <div class="section">
+    <section class="card">
       <div class="section-header">
-        <label>Install into MCP clients</label>
-        <button id="refresh-clients" class="link">Refresh</button>
+        <span class="section-label">Install into MCP clients</span>
+        <button id="refresh-clients" class="btn-link">Refresh</button>
       </div>
       <ul id="client-list" class="client-list">
         <li class="client-empty">Connect to the server to detect clients.</li>
       </ul>
       <p class="hint">
-        Adds a local <code>webmcp</code> MCP server entry to each detected client's config file
-        (a backup is saved as <code>&lt;file&gt;.bak</code>). Restart the client after installing.
+        Adds a local <code>webmcp</code> MCP server entry to each detected client's config
+        (backup: <code>&lt;file&gt;.bak</code>). Restart the client after installing.
       </p>
-    </div>
+    </section>
+
+    <p class="hint footer">Formerly WebMCP · starts with any MCP session that has the <code>webmcp</code> server.</p>
 
     <script src="popup.js"></script>
   </body>

@@ -34,7 +34,7 @@ const CLIENT_REQUEST_TIMEOUT_MS = 10_000;
 
 function sendClientRequest(method, params = {}) {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
-    return Promise.reject(new Error("Not connected to the WebMCP server."));
+    return Promise.reject(new Error("Not connected to the NeuroSquad Browser MCP server."));
   }
   const id = crypto.randomUUID();
   return new Promise((resolve, reject) => {
@@ -135,7 +135,7 @@ async function connect() {
     ws = null;
     hubStatus = null;
     stopPing();
-    failPendingClientRequests("Connection to the WebMCP server was lost.");
+    failPendingClientRequests("Connection to the NeuroSquad Browser MCP server was lost.");
     scheduleReconnect();
   });
 
@@ -158,7 +158,7 @@ function reconnectNow() {
       /* ignore */
     }
   }
-  failPendingClientRequests("Reconnecting to the WebMCP server.");
+  failPendingClientRequests("Reconnecting to the NeuroSquad Browser MCP server.");
   connect();
 }
 

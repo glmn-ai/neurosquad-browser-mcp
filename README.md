@@ -1,7 +1,25 @@
-# WebMCP
+<p><img src="extension/icons/icon128.png" width="64" height="64" alt="NeuroSquad Browser MCP icon"></p>
 
-A bridge that lets **opencode** read and interact with whatever page is open
-in your Chrome browser, using the Model Context Protocol (MCP).
+# NeuroSquad Browser MCP
+
+*Formerly **WebMCP** (renamed in 1.4.0).*
+
+NeuroSquad Browser MCP lets your AI coding agents — Claude Code, opencode,
+Codex CLI, Cursor, or the agent cards in [NeuroSquad](https://neurosquad.ai) —
+read and drive whatever page is open in your own Chrome over the Model Context
+Protocol (MCP): list tabs, read the page, click, fill forms, run JS, take
+screenshots, read console logs and upload files. It is a local Node.js MCP
+server plus an unpacked Chrome extension; nothing leaves your machine.
+
+The extension icon is the NeuroSquad ›S mark with a green **MCP** tag; while
+an agent is working in a tab, the page gets a soft green glow.
+
+> **Compatibility.** Only the user-facing name changed. The MCP server key in
+> client configs is still `webmcp` (so tools stay `mcp__webmcp__browser_*`);
+> the tool names, port `47615`, the `WEBMCP_*` environment variables, the
+> peer token at `~/.webmcp/peer-token` and the `extension/` folder (and
+> therefore the unpacked extension id) are unchanged. Existing installs keep
+> working — just reload the extension.
 
 ```
 opencode  <-- stdio -->  MCP server (server/)  <-- WebSocket -->  Chrome extension (extension/)  <--->  page
@@ -42,7 +60,7 @@ clients were detected, or you'd rather do it by hand, see step 3 below.
 1. Open `chrome://extensions`.
 2. Enable **Developer mode** (top right).
 3. Click **Load unpacked** and select the `extension/` folder.
-4. Pin the "WebMCP Bridge" extension so you can see its status popup. The
+4. Pin the "NeuroSquad Browser MCP" extension so you can see its status popup. The
    dot is red until the MCP server is running and the extension connects to
    it.
 
@@ -172,7 +190,7 @@ Chrome extension ──ws://127.0.0.1:47615/──▶ HUB (whichever process bou
 - A server process now exits when its MCP client closes stdin, so finished
   sessions no longer leave orphan processes holding the port.
 - **No hanging calls**: if Chrome isn't running, calls fail fast with
-  "Browser extension not connected — is Chrome open with WebMCP enabled?".
+  "Browser extension not connected — is Chrome open with the NeuroSquad Browser MCP extension enabled?".
   Right after a failover or an extension drop the hub waits up to 6 s for the
   extension to come back first. Every request also has a timeout (15 s).
 - **Keep-alive**: the extension pings the hub every 20 s (keeps the MV3
@@ -196,9 +214,9 @@ Chrome extension ──ws://127.0.0.1:47615/──▶ HUB (whichever process bou
 
 ### Troubleshooting
 
-- **Popup** shows "Connected on port 47615 · N MCP sessions" (hover for the
-  hub's pid). Red dot = no hub on that port (no session running, or the port
-  setting differs).
+- **Popup** shows a green "Connected" pill with the hub's pid, the number of
+  MCP sessions and the server version. A red "Disconnected" pill = no hub on
+  that port (no session running, or the port setting differs).
 - **`browser_connection_status`** from any session shows `role`, `hubPid`,
   `peers` and `connected`.
 - **"Could not reach the WebMCP hub … port held by another program or an old
@@ -246,9 +264,24 @@ before the update.
 
 - `browser_execute_script` runs through the DevTools protocol (`chrome.debugger`,
   `Runtime.evaluate`) when the page's CSP forbids `eval` (x.com, github.com…).
-  Chrome shows "WebMCP Bridge started debugging this browser" for the moment of
+  Chrome shows "NeuroSquad Browser MCP started debugging this browser" for the moment of
   the call.
 - `browser_upload_files({ selector, paths })` sets local files on an
   `<input type=file>` (CDP `DOM.setFileInputFiles`) — attachments, uploads.
 - Default port is **47615** (was 8765, which NeuroSquad's remote access also
   uses); a saved 8765 in the extension is forgotten.
+
+## 1.4.0 — NeuroSquad Browser MCP
+
+- Renamed from WebMCP to **NeuroSquad Browser MCP**: extension name, toolbar
+  title, popup, and the MCP `serverInfo` clients see (name
+  `neurosquad-browser-mcp`, title "NeuroSquad Browser MCP").
+- New icons (16/32/48/128 px in `extension/icons/`): the NeuroSquad mark with
+  a green MCP tag (no tag at 16 px, where it would not be legible).
+- Popup restyled in NeuroSquad's dark theme: connection pill, hub pid, MCP
+  session count, server and extension versions.
+- Unchanged for compatibility: the `webmcp` config key, `browser_*` tool
+  names, port 47615, `~/.webmcp/peer-token`, the hub protocol and the
+  extension folder. **Reload the extension in `chrome://extensions`**; MCP
+  sessions pick up the new server name on their next start (or `/mcp`
+  reconnect).

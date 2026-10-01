@@ -26,6 +26,8 @@ import { parse, modify, applyEdits } from "jsonc-parser";
 const SERVER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const INDEX_JS = path.join(SERVER_DIR, "src", "index.js");
 const NODE_BIN = process.execPath;
+// Kept as "webmcp" after the rename to NeuroSquad Browser MCP (1.4.0): existing
+// client configs, `mcp__webmcp__*` tool names and permissions depend on this key.
 const ENTRY_NAME = "webmcp";
 
 const FORMATTING = { insertSpaces: true, tabSize: 2, eol: "\n" };

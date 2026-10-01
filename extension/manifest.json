@@ -1,30 +1,60 @@
 {
   "manifest_version": 3,
-  "name": "WebMCP Bridge",
-  "version": "1.3.11",
-  "description": "Bridges a local opencode MCP server to your Chrome browser so it can read and interact with the current page.",
-  "permissions": ["tabs", "scripting", "activeTab", "storage", "alarms", "debugger"],
-  "host_permissions": ["<all_urls>"],
+  "name": "NeuroSquad Browser MCP",
+  "short_name": "NS Browser MCP",
+  "version": "1.4.0",
+  "description": "NeuroSquad Browser MCP (formerly WebMCP): lets local AI agents read and drive your Chrome tabs over MCP.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "tabs",
+    "scripting",
+    "activeTab",
+    "storage",
+    "alarms",
+    "debugger"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content-main.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content-main.js"
+      ],
       "world": "MAIN",
       "run_at": "document_start",
       "all_frames": true
     },
     {
-      "matches": ["<all_urls>"],
-      "js": ["content-isolated.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content-isolated.js"
+      ],
       "run_at": "document_start",
       "all_frames": true
     }
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "WebMCP Bridge"
+    "default_title": "NeuroSquad Browser MCP",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   }
 }
