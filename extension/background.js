@@ -259,45 +259,56 @@ function showGlow() {
          slowly breathing between emerald, mint and teal. */
       .ring {
         position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;
-        /* Rounded corners: the inset glow follows the radius instead of
-           meeting in a sharp corner. */
-        border-radius: 28px;
+        overflow: hidden;
         opacity: 0; transition: opacity .6s ease;
-        box-shadow:
+        /* The "breath": the whole glow swells and settles. */
+        animation: inhale 3.2s ease-in-out infinite;
+      }
+      .ring.on { opacity: 1; }
+      /* Rounded inner edge: the glow follows the radius, and the corners
+         outside it are filled by the box's own outer shadow (clipped by
+         .ring), so they glow too instead of staying empty. */
+      .glow {
+        position: absolute; inset: 0; border-radius: 28px;
+        box-shadow: var(--g0);
+        animation: hue 4.5s ease-in-out infinite;
+      }
+      .glow {
+        --g0:
+          0 0 10px 34px rgba(16, 220, 150, .55),
           inset 0 0 20px 3px rgba(16, 255, 156, .6),
           inset 0 0 64px 12px rgba(16, 185, 129, .3),
           inset 0 0 130px 26px rgba(16, 185, 129, .13);
-        /* Two layers of motion: the colour cycle, and a slower "breath" —
-           the glow swells and settles. */
-        animation: breathe 4.5s ease-in-out infinite, inhale 3.2s ease-in-out infinite;
       }
-      .ring.on { opacity: 1; }
-      @keyframes inhale {
-        0%, 100% { filter: brightness(.7) saturate(.9); }
-        50% { filter: brightness(1.25) saturate(1.15); }
-      }
-      @keyframes breathe {
+      @keyframes hue {
         0%, 100% {
           box-shadow:
+            0 0 10px 34px rgba(16, 220, 150, .55),
             inset 0 0 20px 3px rgba(16, 255, 156, .6),
             inset 0 0 64px 12px rgba(16, 185, 129, .3),
             inset 0 0 130px 26px rgba(16, 185, 129, .13);
         }
         33% {
           box-shadow:
+            0 0 12px 34px rgba(34, 200, 225, .55),
             inset 0 0 26px 4px rgba(34, 211, 238, .62),
             inset 0 0 76px 14px rgba(6, 182, 212, .3),
             inset 0 0 140px 28px rgba(20, 184, 166, .14);
         }
         66% {
           box-shadow:
+            0 0 10px 34px rgba(150, 220, 60, .52),
             inset 0 0 22px 3px rgba(163, 230, 53, .6),
             inset 0 0 68px 13px rgba(132, 204, 22, .28),
             inset 0 0 135px 27px rgba(52, 211, 153, .13);
         }
       }
-      @media (prefers-reduced-motion: reduce) { .ring { animation: none; filter: none; } }
-    </style><div class="ring"></div>`;
+      @keyframes inhale {
+        0%, 100% { filter: brightness(.7) saturate(.9); }
+        50% { filter: brightness(1.25) saturate(1.15); }
+      }
+      @media (prefers-reduced-motion: reduce) { .ring, .glow { animation: none; filter: none; } }
+    </style><div class="ring"><div class="glow"></div></div>`;
     (document.documentElement || document.body).appendChild(host);
     host.__ring = root.querySelector(".ring");
     requestAnimationFrame(() => host.__ring.classList.add("on"));
