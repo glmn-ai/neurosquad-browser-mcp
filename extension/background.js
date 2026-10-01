@@ -255,60 +255,41 @@ function showGlow() {
     const root = host.attachShadow({ mode: "closed" });
     root.innerHTML = `<style>
       :host { all: initial; }
-      /* An inner glow that fades from the window edge into the page (~90 px),
-         slowly breathing between emerald, mint and teal. */
+      /* One light source: a rounded frame drawn as an SVG stroke and blurred.
+         Edges and corners come from the same stroke, so they share colour and
+         fade evenly into the page (no seams at the corners). Colour drift and
+         the "breath" are filters on two wrappers — compositor-friendly. */
       .ring {
         position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;
-        overflow: hidden;
         opacity: 0; transition: opacity .6s ease;
-        /* The "breath": the whole glow swells and settles. */
-        animation: inhale 3.2s ease-in-out infinite;
+        animation: hue 6s ease-in-out infinite;
       }
       .ring.on { opacity: 1; }
-      /* Rounded inner edge: the glow follows the radius, and the corners
-         outside it are filled by the box's own outer shadow (clipped by
-         .ring), so they glow too instead of staying empty. */
-      .glow {
-        position: absolute; inset: 0; border-radius: 28px;
-        box-shadow: var(--g0);
-        animation: hue 4.5s ease-in-out infinite;
-      }
-      .glow {
-        --g0:
-          0 0 10px 34px rgba(16, 220, 150, .55),
-          inset 0 0 20px 3px rgba(16, 255, 156, .6),
-          inset 0 0 64px 12px rgba(16, 185, 129, .3),
-          inset 0 0 130px 26px rgba(16, 185, 129, .13);
-      }
+      .breath { position: absolute; inset: 0; animation: inhale 3.2s ease-in-out infinite; }
+      svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+      .wide { stroke: #10e59a; stroke-width: 120; opacity: .55; }
+      .near { stroke: #34ffb0; stroke-width: 26; opacity: .85; }
       @keyframes hue {
-        0%, 100% {
-          box-shadow:
-            0 0 10px 34px rgba(16, 220, 150, .55),
-            inset 0 0 20px 3px rgba(16, 255, 156, .6),
-            inset 0 0 64px 12px rgba(16, 185, 129, .3),
-            inset 0 0 130px 26px rgba(16, 185, 129, .13);
-        }
-        33% {
-          box-shadow:
-            0 0 12px 34px rgba(34, 200, 225, .55),
-            inset 0 0 26px 4px rgba(34, 211, 238, .62),
-            inset 0 0 76px 14px rgba(6, 182, 212, .3),
-            inset 0 0 140px 28px rgba(20, 184, 166, .14);
-        }
-        66% {
-          box-shadow:
-            0 0 10px 34px rgba(150, 220, 60, .52),
-            inset 0 0 22px 3px rgba(163, 230, 53, .6),
-            inset 0 0 68px 13px rgba(132, 204, 22, .28),
-            inset 0 0 135px 27px rgba(52, 211, 153, .13);
-        }
+        0%, 100% { filter: hue-rotate(0deg); }
+        33% { filter: hue-rotate(28deg); }   /* towards teal */
+        66% { filter: hue-rotate(-38deg); }  /* towards lime */
       }
       @keyframes inhale {
-        0%, 100% { filter: brightness(.7) saturate(.9); }
-        50% { filter: brightness(1.25) saturate(1.15); }
+        0%, 100% { filter: brightness(.72) saturate(.9); }
+        50% { filter: brightness(1.2) saturate(1.15); }
       }
-      @media (prefers-reduced-motion: reduce) { .ring, .glow { animation: none; filter: none; } }
-    </style><div class="ring"><div class="glow"></div></div>`;
+      @media (prefers-reduced-motion: reduce) { .ring, .breath { animation: none; } }
+    </style>
+    <div class="ring"><div class="breath">
+      <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <filter id="wmcp-wide" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="34"/></filter>
+          <filter id="wmcp-near" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="9"/></filter>
+        </defs>
+        <rect class="wide" x="0" y="0" width="100%" height="100%" rx="34" fill="none" filter="url(#wmcp-wide)"/>
+        <rect class="near" x="0" y="0" width="100%" height="100%" rx="34" fill="none" filter="url(#wmcp-near)"/>
+      </svg>
+    </div></div>`;
     (document.documentElement || document.body).appendChild(host);
     host.__ring = root.querySelector(".ring");
     requestAnimationFrame(() => host.__ring.classList.add("on"));
