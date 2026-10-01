@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WebMCP Bridge</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h1>WebMCP Bridge</h1>
+
+    <div id="status" class="status">
+      <span id="status-dot" class="dot"></span>
+      <span id="status-text">Checking...</span>
+    </div>
+
+    <label for="port">Server port</label>
+    <div class="row">
+      <input id="port" type="number" min="1" max="65535" />
+      <button id="save">Save</button>
+    </div>
+
+    <button id="reconnect" class="secondary">Reconnect</button>
+
+    <p class="hint">
+      Connects to the local WebMCP MCP server started by opencode. Make sure opencode has the
+      <code>webmcp</code> MCP server configured and running, then the dot above should turn green.
+    </p>
+
+    <div class="section">
+      <div class="section-header">
+        <label>Install into MCP clients</label>
+        <button id="refresh-clients" class="link">Refresh</button>
+      </div>
+      <ul id="client-list" class="client-list">
+        <li class="client-empty">Connect to the server to detect clients.</li>
+      </ul>
+      <p class="hint">
+        Adds a local <code>webmcp</code> MCP server entry to each detected client's config file
+        (a backup is saved as <code>&lt;file&gt;.bak</code>). Restart the client after installing.
+      </p>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
