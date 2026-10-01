@@ -267,9 +267,15 @@ function showGlow() {
           inset 0 0 20px 3px rgba(16, 255, 156, .6),
           inset 0 0 64px 12px rgba(16, 185, 129, .3),
           inset 0 0 130px 26px rgba(16, 185, 129, .13);
-        animation: breathe 4.5s ease-in-out infinite;
+        /* Two layers of motion: the colour cycle, and a slower "breath" —
+           the glow swells and settles. */
+        animation: breathe 4.5s ease-in-out infinite, inhale 3.2s ease-in-out infinite;
       }
       .ring.on { opacity: 1; }
+      @keyframes inhale {
+        0%, 100% { filter: brightness(.7) saturate(.9); }
+        50% { filter: brightness(1.25) saturate(1.15); }
+      }
       @keyframes breathe {
         0%, 100% {
           box-shadow:
@@ -290,7 +296,7 @@ function showGlow() {
             inset 0 0 135px 27px rgba(52, 211, 153, .13);
         }
       }
-      @media (prefers-reduced-motion: reduce) { .ring { animation: none; } }
+      @media (prefers-reduced-motion: reduce) { .ring { animation: none; filter: none; } }
     </style><div class="ring"></div>`;
     (document.documentElement || document.body).appendChild(host);
     host.__ring = root.querySelector(".ring");
