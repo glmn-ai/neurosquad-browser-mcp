@@ -255,70 +255,42 @@ function showGlow() {
     const root = host.attachShadow({ mode: "closed" });
     root.innerHTML = `<style>
       :host { all: initial; }
-      /* An inner glow that fades from the window edge into the page (~90 px),
-         slowly breathing between emerald, mint and teal. */
+      /* One shape, one colour: a solid frame whose inner edge is a rounded
+         rectangle (the frame also runs past the window, so the blur has
+         colour to sample beyond the edge), blurred as a whole. Edges and
+         corners are the same blurred frame — identical colour by
+         construction — and the inner edge stays rounded. */
       .ring {
         position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;
         overflow: hidden;
         opacity: 0; transition: opacity .6s ease;
-        /* The "breath": the whole glow swells and settles. */
-        animation: inhale 3.2s ease-in-out infinite;
-      }
-      .ring.on { opacity: 1; }
-      /* Rounded inner edge: the glow follows the radius, and the corners
-         outside it are filled by the box's own outer shadow (clipped by
-         .ring), so they glow too instead of staying empty. */
-      .glow {
-        position: absolute; inset: 0; border-radius: 28px;
-        box-shadow:
-            0 0 4px 19px rgba(16, 255, 156, 0.371),
-            0 0 4px 28px rgba(16, 185, 129, 0.194),
-            0 0 4px 42px rgba(16, 185, 129, 0.085),
-            inset 0 0 20px 3px rgba(16, 255, 156, .6),
-            inset 0 0 64px 12px rgba(16, 185, 129, .3),
-            inset 0 0 130px 26px rgba(16, 185, 129, .13);
         animation: hue 4.5s ease-in-out infinite;
       }
-      /* Each inset layer has an outer twin of the same colour, clipped by
-         .ring, that fills the corners outside the 28px radius. Its alpha is
-         the layer's alpha × the inset's strength at the very edge
-         (Φ(spread / (blur/2)) ≈ 0.6), so a corner reads exactly like the
-         edge next to it. */
+      .ring.on { opacity: 1; }
+      .breath { position: absolute; inset: 0; animation: inhale 3.2s ease-in-out infinite; }
+      .layer { position: absolute; inset: 0; }
+      .hole { position: absolute; border-radius: 40px; }
+      /* wide, soft halo */
+      .wide { filter: blur(34px); opacity: .5; }
+      .wide .hole { inset: 26px; box-shadow: 0 0 0 400px #10d090; }
+      /* bright band close to the edge */
+      .near { filter: blur(9px); opacity: .75; }
+      .near .hole { inset: 7px; border-radius: 30px; box-shadow: 0 0 0 400px #22f5a8; }
       @keyframes hue {
-        0%, 100% {
-          box-shadow:
-            0 0 4px 19px rgba(16, 255, 156, 0.371),
-            0 0 4px 28px rgba(16, 185, 129, 0.194),
-            0 0 4px 42px rgba(16, 185, 129, 0.085),
-            inset 0 0 20px 3px rgba(16, 255, 156, .6),
-            inset 0 0 64px 12px rgba(16, 185, 129, .3),
-            inset 0 0 130px 26px rgba(16, 185, 129, .13);
-        }
-        33% {
-          box-shadow:
-            0 0 4px 20px rgba(34, 211, 238, 0.385),
-            0 0 4px 30px rgba(6, 182, 212, 0.193),
-            0 0 4px 44px rgba(20, 184, 166, 0.092),
-            inset 0 0 26px 4px rgba(34, 211, 238, .62),
-            inset 0 0 76px 14px rgba(6, 182, 212, .3),
-            inset 0 0 140px 28px rgba(20, 184, 166, .14);
-        }
-        66% {
-          box-shadow:
-            0 0 4px 19px rgba(163, 230, 53, 0.364),
-            0 0 4px 29px rgba(132, 204, 22, 0.182),
-            0 0 4px 43px rgba(52, 211, 153, 0.085),
-            inset 0 0 22px 3px rgba(163, 230, 53, .6),
-            inset 0 0 68px 13px rgba(132, 204, 22, .28),
-            inset 0 0 135px 27px rgba(52, 211, 153, .13);
-        }
+        0%, 100% { filter: hue-rotate(0deg); }
+        33% { filter: hue-rotate(30deg); }   /* towards teal */
+        66% { filter: hue-rotate(-40deg); }  /* towards lime */
       }
       @keyframes inhale {
-        0%, 100% { filter: brightness(.7) saturate(.9); }
-        50% { filter: brightness(1.25) saturate(1.15); }
+        0%, 100% { filter: brightness(.72) saturate(.9); }
+        50% { filter: brightness(1.2) saturate(1.15); }
       }
-      @media (prefers-reduced-motion: reduce) { .ring, .glow { animation: none; filter: none; } }
-    </style><div class="ring"><div class="glow"></div></div>`;
+      @media (prefers-reduced-motion: reduce) { .ring, .breath { animation: none; } }
+    </style>
+    <div class="ring"><div class="breath">
+      <div class="layer wide"><div class="hole"></div></div>
+      <div class="layer near"><div class="hole"></div></div>
+    </div></div>`;
     (document.documentElement || document.body).appendChild(host);
     host.__ring = root.querySelector(".ring");
     requestAnimationFrame(() => host.__ring.classList.add("on"));
