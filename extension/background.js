@@ -255,11 +255,12 @@ function showGlow() {
     const root = host.attachShadow({ mode: "closed" });
     root.innerHTML = `<style>
       :host { all: initial; }
-      /* One shape, one colour: a solid frame whose inner edge is a rounded
-         rectangle (the frame also runs past the window, so the blur has
-         colour to sample beyond the edge), blurred as a whole. Edges and
-         corners are the same blurred frame — identical colour by
-         construction — and the inner edge stays rounded. */
+      /* Brightness depends only on the distance to a rounded edge: 32 thin
+         inset contours (no blur), denser near the edge, each following the
+         28px radius at its own depth. The corner beyond the radius is filled
+         with exactly the edge's composite alpha 1-(1-0.031)^32 = 0.635, so
+         corners and edges match by arithmetic, not by eye. Colour drift and
+         the breath are filters on two wrappers. */
       .ring {
         position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;
         overflow: hidden;
@@ -268,14 +269,43 @@ function showGlow() {
       }
       .ring.on { opacity: 1; }
       .breath { position: absolute; inset: 0; animation: inhale 3.2s ease-in-out infinite; }
-      .layer { position: absolute; inset: 0; }
-      .hole { position: absolute; border-radius: 40px; }
-      /* wide, soft halo */
-      .wide { filter: blur(34px); opacity: .5; }
-      .wide .hole { inset: 26px; box-shadow: 0 0 0 400px #10d090; }
-      /* bright band close to the edge */
-      .near { filter: blur(9px); opacity: .75; }
-      .near .hole { inset: 7px; border-radius: 30px; box-shadow: 0 0 0 400px #22f5a8; }
+      .glow {
+        position: absolute; inset: 0; border-radius: 28px;
+        box-shadow:
+          0 0 0 60px rgba(18, 230, 160, 0.635),
+          inset 0 0 0 1px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 1px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 1px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 2px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 3px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 5px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 6px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 8px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 10px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 13px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 15px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 18px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 21px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 25px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 29px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 32px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 37px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 41px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 46px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 51px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 56px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 61px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 67px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 73px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 79px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 86px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 93px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 100px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 107px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 114px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 122px rgba(18, 230, 160, 0.031),
+          inset 0 0 0 130px rgba(18, 230, 160, 0.031);
+      }
       @keyframes hue {
         0%, 100% { filter: hue-rotate(0deg); }
         33% { filter: hue-rotate(30deg); }   /* towards teal */
@@ -287,10 +317,7 @@ function showGlow() {
       }
       @media (prefers-reduced-motion: reduce) { .ring, .breath { animation: none; } }
     </style>
-    <div class="ring"><div class="breath">
-      <div class="layer wide"><div class="hole"></div></div>
-      <div class="layer near"><div class="hole"></div></div>
-    </div></div>`;
+    <div class="ring"><div class="breath"><div class="glow"></div></div></div>`;
     (document.documentElement || document.body).appendChild(host);
     host.__ring = root.querySelector(".ring");
     requestAnimationFrame(() => host.__ring.classList.add("on"));
