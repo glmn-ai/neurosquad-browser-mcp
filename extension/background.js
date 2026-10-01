@@ -198,12 +198,91 @@ async function handleServerMessage(raw) {
     return;
   }
 
+  const glowTab = Number.isInteger(params?.tabId) ? params.tabId : undefined;
+  if (glowTab !== undefined && method !== "screenshot") glowOn(glowTab);
   try {
     const result = await handler(params || {});
     sendResponse(id, true, result);
   } catch (err) {
     sendResponse(id, false, undefined, err?.message || String(err));
+  } finally {
+    if (glowTab !== undefined && method !== "screenshot") glowOff(glowTab);
   }
+}
+
+// ---- "WebMCP is working here": an animated green glow around the page ------
+// Shown while a request runs in a tab and for GLOW_LINGER_MS after the last
+// one, so a burst of calls reads as one stretch of work. Injected into the
+// ISOLATED world as a function (not a code string), so page CSP doesn't
+// matter; pointer-events: none, it never blocks the page. Skipped for
+// screenshots so it doesn't end up in them.
+const GLOW_LINGER_MS = 1800;
+const glowActive = new Map(); // tabId -> running requests
+const glowTimers = new Map();
+
+function glowOn(tabId) {
+  glowActive.set(tabId, (glowActive.get(tabId) || 0) + 1);
+  clearTimeout(glowTimers.get(tabId));
+  glowTimers.delete(tabId);
+  chrome.scripting
+    .executeScript({ target: { tabId }, world: "ISOLATED", func: showGlow })
+    .catch(() => {});
+}
+
+function glowOff(tabId) {
+  const left = Math.max(0, (glowActive.get(tabId) || 1) - 1);
+  glowActive.set(tabId, left);
+  if (left > 0) return;
+  clearTimeout(glowTimers.get(tabId));
+  glowTimers.set(
+    tabId,
+    setTimeout(() => {
+      glowTimers.delete(tabId);
+      if (glowActive.get(tabId)) return;
+      chrome.scripting
+        .executeScript({ target: { tabId }, world: "ISOLATED", func: hideGlow })
+        .catch(() => {});
+    }, GLOW_LINGER_MS)
+  );
+}
+
+function showGlow() {
+  const ID = "__webmcp_glow__";
+  let host = document.getElementById(ID);
+  if (!host) {
+    host = document.createElement("div");
+    host.id = ID;
+    const root = host.attachShadow({ mode: "closed" });
+    root.innerHTML = `<style>
+      :host { all: initial; }
+      .ring {
+        position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;
+        opacity: 0; transition: opacity .35s ease;
+        padding: 3px;
+        background: linear-gradient(90deg, #00ff9c, #22d3ee, #a3e635, #10b981, #00ff9c) 0 0 / 300% 100%;
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor; mask-composite: exclude;
+        animation: flow 2.4s linear infinite;
+        filter: drop-shadow(0 0 6px rgba(16,255,156,.75)) drop-shadow(0 0 14px rgba(16,185,129,.45));
+      }
+      .ring.on { opacity: 1; }
+      @keyframes flow { to { background-position: 300% 0; } }
+      @media (prefers-reduced-motion: reduce) { .ring { animation: none; } }
+    </style><div class="ring"></div>`;
+    (document.documentElement || document.body).appendChild(host);
+    host.__ring = root.querySelector(".ring");
+    requestAnimationFrame(() => host.__ring.classList.add("on"));
+  } else if (host.__ring) {
+    clearTimeout(host.__hideTimer);
+    host.__ring.classList.add("on");
+  }
+}
+
+function hideGlow() {
+  const host = document.getElementById("__webmcp_glow__");
+  if (!host) return;
+  if (host.__ring) host.__ring.classList.remove("on");
+  host.__hideTimer = setTimeout(() => host.remove(), 400);
 }
 
 function sendResponse(id, ok, result, error) {
