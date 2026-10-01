@@ -2,7 +2,7 @@
 // WebMCP MCP server (spawned by opencode) and executes browser actions on
 // its behalf using chrome.tabs / chrome.scripting.
 
-const DEFAULT_PORT = 8765;
+const DEFAULT_PORT = 47615;
 const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 
 // Reconnect with exponential backoff (+ jitter). Kept short at the top end
@@ -57,7 +57,10 @@ function failPendingClientRequests(reason) {
 
 async function loadPort() {
   const { webmcpPort } = await chrome.storage.local.get("webmcpPort");
-  port = webmcpPort || DEFAULT_PORT;
+  // 8765 was the old default and is also NeuroSquad's remote-access port: a
+  // saved 8765 sent the extension to the wrong server. Forget it.
+  if (webmcpPort === 8765) await chrome.storage.local.remove("webmcpPort");
+  port = webmcpPort && webmcpPort !== 8765 ? webmcpPort : DEFAULT_PORT;
   return port;
 }
 

@@ -10,7 +10,7 @@ opencode  <-- stdio -->  MCP server (server/)  <-- WebSocket -->  Chrome extensi
 - **`server/`** — a local Node.js MCP server. opencode spawns it over stdio
   (standard MCP transport) and it exposes browser tools (`browser_*`). Every
   MCP session spawns its own copy; they share the one Chrome extension
-  through a small WebSocket **hub** on `127.0.0.1:8765` (see
+  through a small WebSocket **hub** on `127.0.0.1:47615` (see
   [Many sessions at once: hub + peers](#many-sessions-at-once-hub--peers)).
 - **`extension/`** — an unpacked Manifest V3 Chrome extension. Its background
   service worker keeps a WebSocket connection to the MCP server and executes
@@ -71,7 +71,7 @@ Adjust `cwd` to wherever you cloned this repo. Restart opencode (or start a
 new session) so it picks up the new MCP server.
 
 Several sessions using webmcp at the same time is fine — they share the
-port automatically (hub + peers). Only if port `8765` is taken by some
+port automatically (hub + peers). Only if port `47615` is taken by some
 *other* program, set `WEBMCP_PORT` in `environment` for the server entry
 above (for every client), and update the port in the extension popup to match.
 
@@ -147,19 +147,19 @@ agent) starts its own `webmcp` server process, but there is only one Chrome
 extension and one port. So the processes organise themselves:
 
 ```
-Chrome extension ──ws://127.0.0.1:8765/──▶ HUB (whichever process bound the port first)
+Chrome extension ──ws://127.0.0.1:47615/──▶ HUB (whichever process bound the port first)
                                             ▲   ▲
              PEER (session 2) ──/peer──────┘   └──────/peer── PEER (session 3)
 ```
 
-- **Hub**: the process that managed to bind `127.0.0.1:8765`. The extension
+- **Hub**: the process that managed to bind `127.0.0.1:47615`. The extension
   connects to it. It forwards browser requests to the extension (request ids
   are UUIDs, so requests from all sessions multiplex on one socket), routes
   each answer back to the session that asked, keeps the per-tab console log
   buffer, and answers the popup's "Install into MCP clients" actions.
 - **Peers**: every other process. On startup they get `EADDRINUSE`, check
-  `http://127.0.0.1:8765/webmcp` to make sure the port really belongs to a
-  webmcp hub, then connect to `ws://127.0.0.1:8765/peer` and send their tool
+  `http://127.0.0.1:47615/webmcp` to make sure the port really belongs to a
+  webmcp hub, then connect to `ws://127.0.0.1:47615/peer` and send their tool
   calls through the hub.
 - **Failover**: when the hub's session ends (or the process is killed), its
   sockets close. Peers immediately race to bind the port (with random
@@ -196,7 +196,7 @@ Chrome extension ──ws://127.0.0.1:8765/──▶ HUB (whichever process boun
 
 ### Troubleshooting
 
-- **Popup** shows "Connected on port 8765 · N MCP sessions" (hover for the
+- **Popup** shows "Connected on port 47615 · N MCP sessions" (hover for the
   hub's pid). Red dot = no hub on that port (no session running, or the port
   setting differs).
 - **`browser_connection_status`** from any session shows `role`, `hubPid`,

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WebMCP Bridge",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Bridges a local opencode MCP server to your Chrome browser so it can read and interact with the current page.",
   "permissions": ["tabs", "scripting", "activeTab", "storage", "alarms"],
   "host_permissions": ["<all_urls>"],

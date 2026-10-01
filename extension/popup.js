@@ -23,7 +23,7 @@ async function refreshStatus() {
   }
 
   if (portInput && document.activeElement !== portInput) {
-    portInput.value = res?.port ?? 8765;
+    portInput.value = res?.port ?? 47615;
   }
 
   // The client list is only fetchable while connected. Re-fetch it whenever
@@ -140,7 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshClients();
 
   document.getElementById("save").addEventListener("click", async () => {
-    const port = Number(document.getElementById("port").value) || 8765;
+    const port = Number(document.getElementById("port").value) || 47615;
     await chrome.runtime.sendMessage({ type: "set-port", port });
     refreshStatus();
   });

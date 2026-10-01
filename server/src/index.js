@@ -10,7 +10,7 @@ import { listClients, installClient, uninstallClient } from "./clients.js";
 // All diagnostics must go to stderr.
 const log = (...args) => console.error("[webmcp-server]", ...args);
 
-const PORT = Number(process.env.WEBMCP_PORT || 8765);
+const PORT = Number(process.env.WEBMCP_PORT || 47615);
 const VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
 // Every MCP client session spawns its own copy of this server. They share
