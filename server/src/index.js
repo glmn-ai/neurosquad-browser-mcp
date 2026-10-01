@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ExtensionBridge } from "./wsBridge.js";
@@ -10,29 +11,45 @@ import { listClients, installClient, uninstallClient } from "./clients.js";
 const log = (...args) => console.error("[webmcp-server]", ...args);
 
 const PORT = Number(process.env.WEBMCP_PORT || 8765);
+const VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
+// Every MCP client session spawns its own copy of this server. They share
+// the one Chrome extension through a hub + peers scheme (see wsBridge.js):
+// whichever instance owns the port is the hub, the rest join it as peers,
+// and a peer takes over if the hub exits.
 const bridge = new ExtensionBridge({
   port: PORT,
+  version: VERSION,
+  allowedExtensionIds: (process.env.WEBMCP_EXTENSION_IDS || "").split(",").map((s) => s.trim()),
   clientHandlers: {
     listClients: async () => listClients(),
     installClient: async ({ id }) => installClient(id),
     uninstallClient: async ({ id }) => uninstallClient(id),
   },
 });
-log(`Waiting for the WebMCP Chrome extension to connect on ws://localhost:${PORT}`);
 
-const server = new McpServer({ name: "webmcp", version: "1.0.0" });
+const server = new McpServer({ name: "webmcp", version: VERSION });
 registerTools(server, bridge);
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
-log("MCP server connected over stdio.");
-
-function shutdown() {
-  log("Shutting down.");
+let shuttingDown = false;
+function shutdown(reason) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  log(`Shutting down (${reason}).`);
   bridge.close();
-  process.exit(0);
+  // Give the hub a moment to send close frames so peers fail over at once.
+  setTimeout(() => process.exit(0), 150).unref();
 }
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+const transport = new StdioServerTransport();
+transport.onclose = () => shutdown("stdio transport closed");
+await server.connect(transport);
+log(`MCP server ${VERSION} connected over stdio (pid ${process.pid}).`);
+
+// When the MCP client goes away, stdin ends. Without this the WebSocket
+// server would keep the process (and the port) alive as an orphan.
+process.stdin.on("end", () => shutdown("stdin closed"));
+process.stdin.on("close", () => shutdown("stdin closed"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGHUP", () => shutdown("SIGHUP"));

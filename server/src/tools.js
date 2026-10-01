@@ -254,7 +254,7 @@ export function registerTools(server, bridge) {
     async ({ tabId, clear, limit }) => {
       try {
         const id = await resolveTabId(bridge, tabId);
-        const logs = bridge.getConsoleLogs(id, { clear, limit });
+        const logs = await bridge.getConsoleLogs(id, { clear, limit });
         return text(logs);
       } catch (err) {
         return errorText(err);
@@ -266,9 +266,10 @@ export function registerTools(server, bridge) {
     "browser_connection_status",
     {
       title: "Check extension connection",
-      description: "Check whether the WebMCP Chrome extension is currently connected to this MCP server.",
+      description:
+        "Check whether the WebMCP Chrome extension is connected. All webmcp server instances share one extension through a hub; reports this instance's role (hub/peer), the hub pid and how many peer instances are attached.",
       inputSchema: {},
     },
-    async () => text({ connected: bridge.isConnected() })
+    async () => text(await bridge.status())
   );
 }

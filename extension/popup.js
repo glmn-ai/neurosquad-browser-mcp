@@ -11,7 +11,12 @@ async function refreshStatus() {
   const isConnected = !!res?.connected;
   if (isConnected) {
     dot.classList.add("connected");
-    text.textContent = `Connected on port ${res.port}`;
+    const sessions = typeof res.peers === "number" ? res.peers + 1 : null;
+    text.textContent =
+      sessions === null
+        ? `Connected on port ${res.port}`
+        : `Connected on port ${res.port} · ${sessions} MCP session${sessions === 1 ? "" : "s"}`;
+    text.title = res.hubPid ? `Hub: webmcp server pid ${res.hubPid} (v${res.hubVersion})` : "";
   } else {
     dot.classList.add("disconnected");
     text.textContent = `Disconnected (port ${res?.port ?? "?"})`;

@@ -3,10 +3,27 @@
 // its behalf using chrome.tabs / chrome.scripting.
 
 const DEFAULT_PORT = 8765;
+const EXTENSION_VERSION = chrome.runtime.getManifest().version;
+
+// Reconnect with exponential backoff (+ jitter). Kept short at the top end
+// because the server side fails over between several webmcp processes (hub +
+// peers): when the hub exits, another process takes over the port within a
+// second and we should find it quickly.
+const RECONNECT_MIN_MS = 250;
+const RECONNECT_MAX_MS = 5000;
+// While connected, ping the hub every 20 s. WebSocket traffic keeps the MV3
+// service worker alive (Chrome 116+), and a missing pong reveals a dead
+// connection that never delivered a close event.
+const PING_INTERVAL_MS = 20_000;
+const PONG_TIMEOUT_MS = 10_000;
 
 let ws = null;
 let port = DEFAULT_PORT;
 let reconnectTimer = null;
+let reconnectDelay = RECONNECT_MIN_MS;
+let pingTimer = null;
+let lastPongAt = 0;
+let hubStatus = null; // last {type:"hub-status"} from a v2 hub (peers, hubPid, ...)
 
 // Requests this extension sends TO the server (as opposed to `handlers`
 // below, which answer requests the server sends to the extension). Used for
@@ -30,51 +47,116 @@ function sendClientRequest(method, params = {}) {
   });
 }
 
+function failPendingClientRequests(reason) {
+  for (const [id, p] of pendingClientRequests) {
+    clearTimeout(p.timer);
+    pendingClientRequests.delete(id);
+    p.reject(new Error(reason));
+  }
+}
+
 async function loadPort() {
   const { webmcpPort } = await chrome.storage.local.get("webmcpPort");
   port = webmcpPort || DEFAULT_PORT;
   return port;
 }
 
-function scheduleReconnect(delayMs = 3000) {
+function scheduleReconnect() {
   if (reconnectTimer) return;
+  const delay = Math.round(reconnectDelay * (0.75 + Math.random() * 0.5));
+  reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     connect();
-  }, delayMs);
+  }, delay);
+}
+
+function stopPing() {
+  if (pingTimer) clearInterval(pingTimer);
+  pingTimer = null;
+}
+
+function startPing(socket) {
+  stopPing();
+  lastPongAt = Date.now();
+  pingTimer = setInterval(() => {
+    if (socket !== ws || socket.readyState !== WebSocket.OPEN) {
+      stopPing();
+      return;
+    }
+    // Only v2 hubs answer pings; old servers ignore them, so only enforce
+    // the pong deadline once we know we're talking to a v2 hub.
+    if (hubStatus && Date.now() - lastPongAt > PING_INTERVAL_MS + PONG_TIMEOUT_MS) {
+      console.log("[webmcp] hub stopped answering pings; reconnecting");
+      socket.close();
+      return;
+    }
+    socket.send(JSON.stringify({ type: "ping" }));
+  }, PING_INTERVAL_MS);
 }
 
 async function connect() {
   await loadPort();
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
 
+  let socket;
   try {
-    ws = new WebSocket(`ws://localhost:${port}`);
+    // 127.0.0.1, not "localhost": the server only listens on IPv4 loopback.
+    socket = new WebSocket(`ws://127.0.0.1:${port}/`);
   } catch {
     scheduleReconnect();
     return;
   }
+  ws = socket;
 
-  ws.addEventListener("open", () => {
+  socket.addEventListener("open", () => {
+    if (socket !== ws) return;
     console.log(`[webmcp] connected to server on port ${port}`);
+    reconnectDelay = RECONNECT_MIN_MS;
+    hubStatus = null;
+    socket.send(JSON.stringify({ type: "hello", role: "extension", version: EXTENSION_VERSION }));
+    startPing(socket);
   });
 
-  ws.addEventListener("message", (event) => {
+  socket.addEventListener("message", (event) => {
+    if (socket !== ws) return;
     handleServerMessage(event.data);
   });
 
-  ws.addEventListener("close", () => {
+  socket.addEventListener("close", () => {
+    if (socket !== ws) return;
     ws = null;
+    hubStatus = null;
+    stopPing();
+    failPendingClientRequests("Connection to the WebMCP server was lost.");
     scheduleReconnect();
   });
 
-  ws.addEventListener("error", () => {
+  socket.addEventListener("error", () => {
     // The WebSocket spec doesn't expose error details on this event; the
     // "close" listener above fires right after and schedules a reconnect.
-    // Logged so `chrome://extensions` -> service worker console shows
-    // *something* instead of silence when the server isn't reachable yet.
-    console.log(`[webmcp] connection attempt to ws://localhost:${port} failed, will retry`);
+    console.log(`[webmcp] connection attempt to ws://127.0.0.1:${port} failed, will retry`);
   });
+}
+
+function reconnectNow() {
+  reconnectDelay = RECONNECT_MIN_MS;
+  const old = ws;
+  ws = null;
+  stopPing();
+  if (old) {
+    try {
+      old.close();
+    } catch {
+      /* ignore */
+    }
+  }
+  failPendingClientRequests("Reconnecting to the WebMCP server.");
+  connect();
 }
 
 async function handleServerMessage(raw) {
@@ -82,6 +164,15 @@ async function handleServerMessage(raw) {
   try {
     msg = JSON.parse(raw);
   } catch {
+    return;
+  }
+  if (msg.type === "pong") {
+    lastPongAt = Date.now();
+    return;
+  }
+  if (msg.type === "hub-status") {
+    hubStatus = msg;
+    lastPongAt = Date.now();
     return;
   }
   if (msg.type === "client-response") {
@@ -273,22 +364,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponseFn) => {
   }
 
   if (message?.type === "get-status") {
-    sendResponseFn({ connected: !!ws && ws.readyState === WebSocket.OPEN, port });
+    sendResponseFn({
+      connected: !!ws && ws.readyState === WebSocket.OPEN,
+      port,
+      peers: hubStatus?.peers,
+      hubPid: hubStatus?.hubPid,
+      hubVersion: hubStatus?.version,
+    });
     return true;
   }
 
   if (message?.type === "set-port") {
     chrome.storage.local.set({ webmcpPort: message.port }).then(() => {
-      if (ws) ws.close();
-      connect();
+      reconnectNow();
       sendResponseFn({ ok: true });
     });
     return true;
   }
 
   if (message?.type === "reconnect") {
-    if (ws) ws.close();
-    connect();
+    reconnectNow();
     sendResponseFn({ ok: true });
     return true;
   }
@@ -330,13 +425,17 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 // ---------------------------------------------------------------------------
-// Keep-alive: MV3 service workers can be suspended; an alarm periodically
-// wakes us up so we can notice a dropped connection and reconnect.
+// Keep-alive: MV3 service workers can be suspended. The 20 s ping above
+// keeps the worker alive while connected; while disconnected, this alarm
+// (30 s is Chrome's minimum period) wakes the worker so the reconnect loop
+// survives suspension.
 // ---------------------------------------------------------------------------
 
-chrome.alarms.create("webmcp-keepalive", { periodInMinutes: 1 });
+chrome.alarms.create("webmcp-keepalive", { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "webmcp-keepalive" && (!ws || ws.readyState === WebSocket.CLOSED)) {
+  if (alarm.name !== "webmcp-keepalive") return;
+  if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+    ws = null;
     connect();
   }
 });
