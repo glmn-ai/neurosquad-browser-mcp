@@ -199,7 +199,7 @@ async function handleServerMessage(raw) {
   }
 
   const glowTab = Number.isInteger(params?.tabId) ? params.tabId : undefined;
-  if (glowTab !== undefined && method !== "screenshot") glowOn(glowTab);
+  if (glowTab !== undefined && method !== "screenshot") glowOn(glowTab, method);
   try {
     const result = await handler(params || {});
     sendResponse(id, true, result);
@@ -220,12 +220,25 @@ const GLOW_LINGER_MS = 1800;
 const glowActive = new Map(); // tabId -> running requests
 const glowTimers = new Map();
 
-function glowOn(tabId) {
+// What the island says the agent is doing, per request method.
+const ACTION_LABELS = {
+  navigate: ["Opening a page", "Открывает страницу"],
+  click: ["Clicking", "Нажимает"],
+  fill: ["Typing", "Вводит текст"],
+  uploadFiles: ["Attaching files", "Прикрепляет файлы"],
+  getPageContent: ["Reading the page", "Читает страницу"],
+  querySelector: ["Looking at the page", "Смотрит страницу"],
+  getPageInfo: ["Looking at the page", "Смотрит страницу"],
+  executeScript: ["Running a script", "Выполняет скрипт"],
+};
+
+function glowOn(tabId, method) {
   glowActive.set(tabId, (glowActive.get(tabId) || 0) + 1);
   clearTimeout(glowTimers.get(tabId));
   glowTimers.delete(tabId);
+  const label = ACTION_LABELS[method] || ["Working", "Работает"];
   chrome.scripting
-    .executeScript({ target: { tabId }, world: "ISOLATED", func: showGlow })
+    .executeScript({ target: { tabId, frameIds: [0] }, world: "ISOLATED", func: showGlow, args: [label] })
     .catch(() => {});
 }
 
@@ -240,14 +253,16 @@ function glowOff(tabId) {
       glowTimers.delete(tabId);
       if (glowActive.get(tabId)) return;
       chrome.scripting
-        .executeScript({ target: { tabId }, world: "ISOLATED", func: hideGlow })
+        .executeScript({ target: { tabId, frameIds: [0] }, world: "ISOLATED", func: hideGlow })
         .catch(() => {});
     }, GLOW_LINGER_MS)
   );
 }
 
-function showGlow() {
+function showGlow(label) {
   const ID = "__webmcp_glow__";
+  const ru = /^ru\b/i.test(navigator.language || "");
+  const action = Array.isArray(label) ? label[ru ? 1 : 0] : "";
   let host = document.getElementById(ID);
   if (!host) {
     host = document.createElement("div");
@@ -300,18 +315,82 @@ function showGlow() {
         0%, 100% { filter: brightness(.72) saturate(.9); }
         50% { filter: brightness(1.2) saturate(1.15); }
       }
-      @media (prefers-reduced-motion: reduce) { .ring, .breath { animation: none; } }
+      /* The island: a small dark pill at the bottom centre — "NeuroSquad MCP
+         is working" plus what it is doing right now. Never takes clicks. */
+      .island {
+        position: fixed; left: 50%; bottom: 18px; z-index: 2147483647; pointer-events: none;
+        transform: translate(-50%, 14px) scale(.96); opacity: 0;
+        transition: opacity .35s ease, transform .45s cubic-bezier(.2, .9, .25, 1.15);
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 14px 8px 10px; border-radius: 999px;
+        background: rgba(12, 13, 13, .86);
+        border: 1px solid rgba(163, 230, 53, .28);
+        box-shadow: 0 10px 34px rgba(0, 0, 0, .45), 0 0 22px rgba(16, 185, 129, .22);
+        backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3);
+        font: 500 13px/1.2 Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+        color: #f4f4f5; letter-spacing: .01em; white-space: nowrap;
+      }
+      .island.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      .mark { width: 26px; height: 18px; flex: none; }
+      .title { font-weight: 650; }
+      .sep { width: 1px; height: 14px; background: rgba(255, 255, 255, .16); }
+      .action { color: #a1a1aa; display: flex; align-items: center; gap: 7px; }
+      .action:empty { display: none; }
+      .dot {
+        width: 7px; height: 7px; border-radius: 50%; flex: none;
+        background: #22f5a8; box-shadow: 0 0 0 0 rgba(34, 245, 168, .6);
+        animation: ping 1.6s ease-out infinite;
+      }
+      .shine {
+        background: linear-gradient(90deg, #a3e635, #10b981 40%, #f4f4f5 50%, #10b981 60%, #a3e635);
+        background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+        animation: shine 3.2s linear infinite;
+      }
+      @keyframes ping {
+        0% { box-shadow: 0 0 0 0 rgba(34, 245, 168, .55); }
+        80%, 100% { box-shadow: 0 0 0 8px rgba(34, 245, 168, 0); }
+      }
+      @keyframes shine { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+      @media (prefers-reduced-motion: reduce) {
+        .ring, .breath, .dot, .shine { animation: none; }
+        .island { transition: opacity .2s ease; transform: translate(-50%, 0); }
+      }
     </style>
     <div class="ring"><div class="breath">
       <div class="layer wide"><div class="hole"></div></div>
       <div class="layer near"><div class="hole"></div></div>
-    </div></div>`;
+    </div></div>
+    <div class="island" role="status" aria-live="polite">
+      <svg class="mark" viewBox="0 0 120 80" aria-hidden="true">
+        <defs><linearGradient id="g" x1="4" y1="0" x2="116" y2="0" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#a3e635"/><stop offset="1" stop-color="#10b981"/></linearGradient></defs>
+        <g transform="translate(6,-4) skewX(-11)">
+          <polyline points="14,22 32,42 14,62" fill="none" stroke="url(#g)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+        <g transform="translate(40,4) scale(.72) translate(9,0) skewX(-11)">
+          <polyline points="86,10 32,10 32,41 80,41 80,74 24,74" fill="none" stroke="url(#g)" stroke-width="15" stroke-linejoin="miter"/>
+        </g>
+      </svg>
+      <span class="title shine"></span>
+      <span class="sep"></span>
+      <span class="action"><span class="dot"></span><span class="label"></span></span>
+    </div>`;
     (document.documentElement || document.body).appendChild(host);
     host.__ring = root.querySelector(".ring");
-    requestAnimationFrame(() => host.__ring.classList.add("on"));
+    host.__island = root.querySelector(".island");
+    host.__label = root.querySelector(".label");
+    root.querySelector(".title").textContent = ru ? "NeuroSquad MCP работает" : "NeuroSquad MCP is working";
+    host.__label.textContent = action;
+    requestAnimationFrame(() => {
+      host.__ring.classList.add("on");
+      host.__island.classList.add("on");
+    });
   } else if (host.__ring) {
     clearTimeout(host.__hideTimer);
+    host.style.visibility = "";
     host.__ring.classList.add("on");
+    if (host.__island) host.__island.classList.add("on");
+    if (host.__label && action) host.__label.textContent = action;
   }
 }
 
@@ -319,7 +398,14 @@ function hideGlow() {
   const host = document.getElementById("__webmcp_glow__");
   if (!host) return;
   if (host.__ring) host.__ring.classList.remove("on");
-  host.__hideTimer = setTimeout(() => host.remove(), 400);
+  if (host.__island) host.__island.classList.remove("on");
+  host.__hideTimer = setTimeout(() => host.remove(), 450);
+}
+
+// Screenshots must show the page, not our overlay: hide it for the capture.
+function setGlowHidden(hidden) {
+  const host = document.getElementById("__webmcp_glow__");
+  if (host) host.style.visibility = hidden ? "hidden" : "";
 }
 
 function sendResponse(id, ok, result, error) {
@@ -486,8 +572,18 @@ const handlers = {
       await chrome.tabs.update(tabId, { active: true });
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
-    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
-    return { dataUrl };
+    const toggle = (hidden) =>
+      chrome.scripting
+        .executeScript({ target: { tabId, frameIds: [0] }, world: "ISOLATED", func: setGlowHidden, args: [hidden] })
+        .catch(() => {});
+    await toggle(true);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    try {
+      const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+      return { dataUrl };
+    } finally {
+      await toggle(false);
+    }
   },
 };
 
