@@ -1,0 +1,98 @@
+# CodeRabbit AI review config — https://docs.coderabbit.ai/reference/configuration
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+tone_instructions: "Be direct and concise. Lead with real bugs and risks; skip praise and style nits a linter would catch."
+early_access: false
+
+reviews:
+  profile: assertive
+  request_changes_workflow: false  # the owner's review is the merge gate, not the bot
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+  review_status: true
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  poem: false
+  changed_files_summary: true
+  suggested_labels: true
+  auto_apply_labels: false
+  suggested_reviewers: false
+  abort_on_close: true
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches: ["main"]
+    ignore_title_keywords: ["WIP", "[skip review]"]
+  path_filters:
+    - "!**/package-lock.json"
+    - "!**/pnpm-lock.yaml"
+    - "!**/yarn.lock"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/coverage/**"
+    - "!**/*.generated.*"
+    - "!**/generated/**"
+    - "!**/*.snap"
+    - "!**/*.min.js"
+  path_instructions:
+    - path: "extension/**"
+      instructions: |
+        Manifest V3 Chrome extension that lets local AI agents read and drive the user's tabs. Review for security first:
+        - Permission minimality: any new entry in manifest.json permissions/host_permissions, optional permissions or
+          externally_connectable must be justified; flag broader scopes than the feature needs.
+        - No data exfiltration: the only network peer is ws://127.0.0.1:<port>/ (the local hub). No analytics, no remote
+          fetch/XHR/WebSocket to other hosts, no remote code (no remotely hosted scripts, no eval of fetched code), fonts and
+          assets stay bundled.
+        - Content-script isolation: MAIN-world scripts (content-main.js, executeScript with world "MAIN") are reachable by the
+          page; never trust messages coming from the page (window.postMessage), validate shape and marker, never expose
+          chrome.* APIs or tab/hub data to the page, and keep page-provided text out of innerHTML (textContent only).
+        - Overlay (glow/island) lives in a closed shadow root, pointer-events: none, must not break page layout or end up in
+          screenshots.
+        - CSP: extension pages must keep the default MV3 CSP (no unsafe-eval / remote sources); page-CSP fallbacks go through
+          chrome.debugger only for the duration of a call and always detach.
+        - MV3 service worker lifecycle: state can vanish when the worker sleeps; reconnect/backoff/alarms must stay correct,
+          no unbounded maps or timers per tab.
+    - path: "server/src/**"
+      instructions: |
+        Node.js MCP server (stdio) plus the WebSocket hub the extension connects to. Review for:
+        - Binding: the hub listens on 127.0.0.1 only, never 0.0.0.0/::, and the HTTP info endpoint leaks nothing sensitive.
+        - Auth: the extension endpoint accepts only chrome-extension:// origins (optionally pinned by WEBMCP_EXTENSION_IDS);
+          the /peer endpoint requires the x-webmcp-token header compared with timingSafeEqual and rejects any Origin; the token
+          file is created 0600 in a 0700 dir and never logged.
+        - Input validation: every MCP tool argument is validated (zod), selectors/paths/URLs are passed as data, never
+          concatenated into code strings; payload sizes are bounded.
+        - stdout is reserved for MCP JSON-RPC — all logging goes to stderr.
+        - Hub/peer election and failover: races, request routing by id, timeouts, no hanging calls, no orphan processes.
+        - clients.js / setup.js edit the user's MCP client configs: only the documented "webmcp" entry, comments preserved,
+          a .bak written first, never overwrite an existing entry silently.
+    - path: "server/test/**"
+      instructions: "Tests must be deterministic, use a random port and a temporary token file, never touch ~/.webmcp or real MCP client configs, and always kill the processes they spawn."
+    - path: "scripts/**"
+      instructions: "Dependency-free Node scripts used by CI; must work on Windows, macOS and Linux."
+    - path: ".github/workflows/**"
+      instructions: "Least-privilege permissions, actions pinned by full SHA, persist-credentials: false, no pull_request_target, no secrets exposed to pull_request from forks, no script injection via untrusted inputs."
+  tools:
+    eslint:
+      enabled: true
+    biome:
+      enabled: false
+    markdownlint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    actionlint:
+      enabled: true
+    zizmor:
+      enabled: true
+    gitleaks:
+      enabled: true
+    github-checks:
+      enabled: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: local

@@ -2,74 +2,122 @@
 
 # NeuroSquad Browser MCP
 
-*Formerly **WebMCP** (renamed in 1.4.0).*
+[![CI](https://github.com/glmn-ai/neurosquad-browser-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/glmn-ai/neurosquad-browser-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-NeuroSquad Browser MCP lets your AI coding agents — Claude Code, opencode,
-Codex CLI, Cursor, or the agent cards in [NeuroSquad](https://neurosquad.ai) —
-read and drive whatever page is open in your own Chrome over the Model Context
-Protocol (MCP): list tabs, read the page, click, fill forms, run JS, take
-screenshots, read console logs and upload files. It is a local Node.js MCP
-server plus an unpacked Chrome extension; nothing leaves your machine.
+**Let your local AI agents read and drive the Chrome tabs you already have open — over MCP.**
 
-The extension icon is the NeuroSquad ›S mark with a green **MCP** tag; while
-an agent is working in a tab, the page gets a soft green glow.
+NeuroSquad Browser MCP is a Chrome extension plus a small local [Model Context Protocol](https://modelcontextprotocol.io)
+server. Coding agents — Claude Code, Codex CLI, OpenCode, Cursor, or the agent cards in
+[NeuroSquad](https://neurosquad.ai) — get `browser_*` tools to list tabs, read a page, click, fill
+forms, run JavaScript, take screenshots, read console logs and attach files. They work in **your**
+browser, with your sessions, instead of a separate headless one.
 
-> **Compatibility.** Only the user-facing name changed. The MCP server key in
-> client configs is still `webmcp` (so tools stay `mcp__webmcp__browser_*`);
-> the tool names, port `47615`, the `WEBMCP_*` environment variables, the
-> peer token at `~/.webmcp/peer-token` and the `extension/` folder (and
-> therefore the unpacked extension id) are unchanged. Existing installs keep
-> working — just reload the extension.
+Everything runs on your machine: the extension talks only to the server on `127.0.0.1`, and the
+server talks only to the agent that started it.
+
+*Formerly **WebMCP** (renamed in 1.4.0; see [Compatibility](#compatibility)).*
 
 ```
-opencode  <-- stdio -->  MCP server (server/)  <-- WebSocket -->  Chrome extension (extension/)  <--->  page
+AI agent  <-- stdio (MCP) -->  server/  <-- ws://127.0.0.1:47615 -->  extension/  <-->  your tabs
 ```
 
-- **`server/`** — a local Node.js MCP server. opencode spawns it over stdio
-  (standard MCP transport) and it exposes browser tools (`browser_*`). Every
-  MCP session spawns its own copy; they share the one Chrome extension
-  through a small WebSocket **hub** on `127.0.0.1:47615` (see
-  [Many sessions at once: hub + peers](#many-sessions-at-once-hub--peers)).
-- **`extension/`** — an unpacked Manifest V3 Chrome extension. Its background
-  service worker keeps a WebSocket connection to the MCP server and executes
-  the requested actions (read DOM, click, fill, screenshot, run JS, ...)
-  using `chrome.tabs` / `chrome.scripting`.
+## You always see when it's working
 
-## Setup
+While an agent is acting in a tab, the page gets a soft, breathing **green glow** around its edges
+and a small **"NeuroSquad MCP is working"** island at the bottom centre that says what is happening
+right now — *Opening a page*, *Clicking*, *Typing*, *Reading the page*, *Running a script*,
+*Attaching files* (in Russian if your browser is set to Russian). It fades out a moment after the
+last call. The overlay never takes clicks (`pointer-events: none`), lives in a closed shadow root so
+it can't disturb the page, and is hidden while a screenshot is taken.
 
-### 1. Install server dependencies
+The toolbar popup shows whether the extension is connected, the hub's process id, how many MCP
+sessions are attached, and the server and extension versions.
+
+## Tools
+
+| Tool | What it does |
+| --- | --- |
+| `browser_list_tabs` | List all open tabs (id, title, url, active). |
+| `browser_get_page_info` | Id, title and url of a tab. |
+| `browser_get_page_content` | Visible text or full HTML of a page. |
+| `browser_query_selector` | Run `querySelectorAll` and return the matched elements' tag, text and attributes. |
+| `browser_click` | Click the first element matching a CSS selector. |
+| `browser_fill` | Set the value of an input, textarea or contenteditable and fire `input`/`change`. |
+| `browser_navigate` | Navigate a tab to a URL. |
+| `browser_execute_script` | Run JavaScript in the page's own context and return the result. |
+| `browser_upload_files` | Put local files into an `<input type=file>` (attachments, uploads). |
+| `browser_screenshot` | PNG screenshot of the visible area of a tab. |
+| `browser_get_console_logs` | Buffered `console.*` output and uncaught errors of a tab. |
+| `browser_connection_status` | Whether the extension is connected, plus this server's role (`hub`/`peer`), the hub pid and the number of peers. |
+
+Every tool takes an optional `tabId`; without it, the active tab of the last focused window is used.
+
+## Install
+
+You need Node.js 22 or newer and Chrome (other Chromium browsers with extension support should
+work too).
+
+### 1. Get the code and install the server
 
 ```sh
-cd server
+git clone https://github.com/glmn-ai/neurosquad-browser-mcp.git
+cd neurosquad-browser-mcp/server
 npm install
 ```
 
-This also runs `setup.js` automatically (via `postinstall`), which writes a
-`webmcp` MCP server entry into every locally detected MCP client's config
-(opencode, Claude Code, Cursor, Codex CLI) — see
-[One-click MCP client install](#one-click-mcp-client-install). It's safe to
-re-run any time with `npm run setup`, and it never overwrites an entry that's
-already there. **Restart the client(s) it touched** (or start a new session)
-so they pick up the new server — until then, nothing will be listening on
-the WebSocket port and the extension popup will show a red dot with no
-client list, since listing clients itself depends on a running server. If no
-clients were detected, or you'd rather do it by hand, see step 3 below.
+`npm install` also runs `setup.js` (a `postinstall` script). It looks for the MCP clients installed
+on your machine — OpenCode, Claude Code, Cursor, Codex CLI — and adds a `webmcp` server entry to
+each of their configs (details in [MCP client setup](#mcp-client-setup)). It never overwrites an
+existing entry and writes a `.bak` copy before changing a file. Don't want that? Use
+`npm install --ignore-scripts` and configure your client by hand. Re-run it any time with
+`npm run setup`.
 
-### 2. Load the Chrome extension
+**Restart the client(s) it updated** (or start a new session) so they start the server.
+
+### 2. Load the extension
+
+*Chrome Web Store: coming later.* Until then, load it unpacked:
 
 1. Open `chrome://extensions`.
-2. Enable **Developer mode** (top right).
-3. Click **Load unpacked** and select the `extension/` folder.
-4. Pin the "NeuroSquad Browser MCP" extension so you can see its status popup. The
-   dot is red until the MCP server is running and the extension connects to
-   it.
+2. Turn on **Developer mode** (top right).
+3. Click **Load unpacked** and select the `extension/` folder of this repository.
+4. Pin **NeuroSquad Browser MCP** to the toolbar to see its status.
 
-### 3. Configure opencode (manual, if step 1's automatic setup didn't cover it)
+The popup also opens as a tab right after installing. Its dot turns green once an MCP session has
+started the server and the extension has connected — until then it stays red, which is normal.
 
-If `~/.config/opencode/` didn't exist yet when you ran `npm install` (or you
-want a per-project config instead of the global one), add a local MCP server
-entry to your opencode config (`opencode.json` / `opencode.jsonc`, global at
-`~/.config/opencode/` or per-project) by hand:
+After pulling a new version, press the reload button on the extension's card in
+`chrome://extensions` and restart your MCP sessions.
+
+### 3. Try it
+
+With a page open in Chrome, ask your agent:
+
+```
+use the browser tools to tell me what's on the current page
+click the "Submit" button
+fill the search box with "hello" and show me the console errors
+```
+
+## MCP client setup
+
+`setup.js` (and the popup's **Install into MCP clients** button, which asks the running server to
+do the same thing) edits these files:
+
+| Client | Config file | Entry |
+| --- | --- | --- |
+| OpenCode | `~/.config/opencode/opencode.json` | `mcp.webmcp` (JSONC) |
+| Claude Code | `~/.claude.json` | `mcpServers.webmcp` (user scope) |
+| Cursor | `~/.cursor/mcp.json` | `mcpServers.webmcp` |
+| Codex CLI | `~/.codex/config.toml` | `[mcp_servers.webmcp]` |
+
+A client counts as installed when its config directory exists. The entry runs `server/src/index.js`
+with the exact Node binary that ran the installer (so GUI apps without Node in `PATH` work too).
+JSON/JSONC files are edited surgically with `jsonc-parser`, keeping your comments and other servers.
+
+To configure a client by hand, add a stdio MCP server named `webmcp` that runs
+`node /path/to/neurosquad-browser-mcp/server/src/index.js`. For OpenCode, for example:
 
 ```jsonc
 {
@@ -77,92 +125,77 @@ entry to your opencode config (`opencode.json` / `opencode.jsonc`, global at
   "mcp": {
     "webmcp": {
       "type": "local",
-      "command": ["node", "src/index.js"],
-      "cwd": "E:\\Github\\vibe\\webmcp\\server",
+      "command": ["node", "/path/to/neurosquad-browser-mcp/server/src/index.js"],
       "enabled": true
     }
   }
 }
 ```
 
-Adjust `cwd` to wherever you cloned this repo. Restart opencode (or start a
-new session) so it picks up the new MCP server.
+For Claude Code: `claude mcp add --scope user webmcp -- node /path/to/neurosquad-browser-mcp/server/src/index.js`.
 
-Several sessions using webmcp at the same time is fine — they share the
-port automatically (hub + peers). Only if port `47615` is taken by some
-*other* program, set `WEBMCP_PORT` in `environment` for the server entry
-above (for every client), and update the port in the extension popup to match.
+### Environment variables
 
-Alternatively, once the server is running (see step 1) and the extension is
-connected, open the extension popup (it also opens automatically as a tab on
-first install) and use **Install into MCP clients** to have the server write
-this config for you automatically — see [One-click MCP client install](#one-click-mcp-client-install) below.
-
-### 4. Try it
-
-With the extension connected (green dot in the popup) and a page open in
-Chrome, ask opencode things like:
-
-```
-use webmcp to tell me what's on the current page
-use webmcp to click the "Submit" button
-use webmcp to fill the search box with "hello" and show me console errors
-```
-
-## Tools
-
-| Tool | Description |
-| --- | --- |
-| `browser_list_tabs` | List all open tabs (id, title, url, active). |
-| `browser_get_page_info` | Get id/title/url of a tab (defaults to active tab). |
-| `browser_get_page_content` | Get visible text or full HTML of a page. |
-| `browser_query_selector` | Run `querySelectorAll` and return matched elements' tag/text/attributes. |
-| `browser_click` | Click the first element matching a CSS selector. |
-| `browser_fill` | Set the value of an input/textarea/contenteditable and fire input/change events. |
-| `browser_navigate` | Navigate a tab to a URL. |
-| `browser_execute_script` | Run arbitrary JS in the page's own JS context and return the result. |
-| `browser_screenshot` | Capture a PNG screenshot of the visible area of a tab. |
-| `browser_get_console_logs` | Read buffered `console.log/warn/error` output and uncaught errors for a tab. |
-| `browser_connection_status` | Check whether the Chrome extension is connected (via the hub), plus this instance's role (`hub`/`peer`), the hub pid and the number of peers. |
-
-All tools take an optional `tabId`; if omitted, they target the active tab
-of the last focused Chrome window.
-
-## One-click MCP client install
-
-A Chrome extension can't write to arbitrary files on disk (Claude Desktop's
-config, `~/.cursor/mcp.json`, etc.) — that's outside the extension sandbox.
-The one thing it *can* reach is the already-running local `server/` process
-over the same WebSocket used for browser tools, and that process has full
-filesystem access. So the popup's **Install into MCP clients** section asks
-the server to detect and edit each client's config for you:
-
-| Client | Config file | Format |
+| Variable | Default | Meaning |
 | --- | --- | --- |
-| opencode | `~/.config/opencode/opencode.json` | JSONC, `mcp.webmcp` |
-| Claude Code | `~/.claude.json` | JSON, `mcpServers.webmcp` (user scope) |
-| Cursor | `~/.cursor/mcp.json` | JSON, `mcpServers.webmcp` |
-| Codex CLI | `~/.codex/config.toml` | TOML, `[mcp_servers.webmcp]` |
+| `WEBMCP_PORT` | `47615` | Port of the local hub. If you change it, set the same port in the extension popup. |
+| `WEBMCP_EXTENSION_IDS` | *(any)* | Comma-separated extension ids allowed to connect (see `chrome://extensions`). Recommended. |
+| `WEBMCP_TOKEN_FILE` | `~/.webmcp/peer-token` | Where the shared peer token lives. |
 
-Detection just checks whether the client's config directory exists on disk;
-"Install" merges in a `webmcp` entry pointing at this repo's `server/src/index.js`,
-run with the exact Node binary (`process.execPath`) the server itself is
-running under (so it works even if a GUI app's `PATH` doesn't include Node).
-JSON/JSONC files are edited with a surgical text edit (via `jsonc-parser`)
-that preserves existing comments and other configured servers; a `<file>.bak`
-backup is written before every change. Restart the target client after
-installing so it picks up the new server.
+## Security and permissions
 
-Implementation: `server/src/clients.js` (detect/install/uninstall logic),
-exposed to the extension over a small `client-request` / `client-response`
-message pair added to the existing WebSocket protocol (see
-`server/src/wsBridge.js` and `extension/background.js`).
+This extension gives software on your computer control over your browser — that is the point of it,
+and it is also why you should understand exactly what it can do. In short: **an agent connected
+through it can do anything you can do in your logged-in tabs.** Only connect agents you trust, and
+watch for the green glow.
 
-## Many sessions at once: hub + peers
+### Why the extension needs each permission
 
-Each MCP client session (every Claude Code / opencode / Cursor window, every
-agent) starts its own `webmcp` server process, but there is only one Chrome
-extension and one port. So the processes organise themselves:
+| Permission | Why |
+| --- | --- |
+| `<all_urls>` (host permission) | Agents work on whatever page you have open, so the extension must be able to read and script any site. Without it, every tool would need a per-site grant. |
+| `scripting` | Reading the page, querying elements, clicking, filling, running `browser_execute_script`, showing the glow and island. |
+| `debugger` | Only for two things the normal APIs can't do: running a script on pages whose Content-Security-Policy forbids `eval` (x.com, github.com, …) and setting files on `<input type=file>` (`browser_upload_files`). It attaches to one tab for the duration of that call and detaches right after; Chrome shows its "started debugging this browser" bar meanwhile. |
+| `tabs` | Listing tabs and their titles/urls, navigating, switching to a tab for a screenshot (Chrome can capture only the visible tab). |
+| `activeTab` | Capturing the visible tab for screenshots. |
+| `storage` | Remembering the port you set in the popup. |
+| `alarms` | Waking the MV3 service worker every 30 s to reconnect to the server when it starts. |
+
+Two content scripts run on every page at `document_start`: one wraps `console.*` and listens for
+uncaught errors so `browser_get_console_logs` can return them; the other relays those lines to the
+extension. They do nothing else.
+
+### What leaves the browser, and where it goes
+
+- The extension connects to **one** place: `ws://127.0.0.1:<port>/` on your own machine. It makes no
+  other network requests — no analytics, no telemetry, no remote code; fonts and icons are bundled.
+- What it sends there: the results of tool calls (page text/HTML, element info, script results,
+  screenshots, tab titles and urls) and the console output of your tabs, while a server is
+  connected. The server keeps console lines in memory (per tab, bounded) and passes everything to
+  the agent that asked. **What the agent then does with it — including sending it to its model
+  provider — is up to that agent.**
+- `browser_upload_files` reads files from disk by path and attaches them to a page; the agent
+  chooses the paths.
+
+### How the local server is protected
+
+- The hub listens on `127.0.0.1` only, never on other interfaces.
+- The extension endpoint accepts only WebSocket handshakes whose `Origin` is a
+  `chrome-extension://` id; web pages (`https://…` origins) and clients without an origin get 403.
+  Set `WEBMCP_EXTENSION_IDS` to accept only your copy of the extension.
+- Other server processes (one per MCP session) join the hub on `/peer`, which requires a random
+  256-bit token from `~/.webmcp/peer-token` (created with mode 600, compared in constant time) and
+  rejects any `Origin`. Web pages can't set that header or read that file.
+- Limits of this model: the extension does not authenticate the server. **Any program running as
+  your user** can start a server on that port (or read the token) and drive the browser, just like
+  your MCP clients do. Treat it like any other local developer tool with that power.
+
+Found a problem? Please report it privately — see [SECURITY.md](SECURITY.md).
+
+## Many sessions at once: hub and peers
+
+Every MCP session (each Claude Code / OpenCode / Cursor window, each agent) starts its own server
+process, but there is one extension and one port. The processes organise themselves:
 
 ```
 Chrome extension ──ws://127.0.0.1:47615/──▶ HUB (whichever process bound the port first)
@@ -170,118 +203,77 @@ Chrome extension ──ws://127.0.0.1:47615/──▶ HUB (whichever process bou
              PEER (session 2) ──/peer──────┘   └──────/peer── PEER (session 3)
 ```
 
-- **Hub**: the process that managed to bind `127.0.0.1:47615`. The extension
-  connects to it. It forwards browser requests to the extension (request ids
-  are UUIDs, so requests from all sessions multiplex on one socket), routes
-  each answer back to the session that asked, keeps the per-tab console log
-  buffer, and answers the popup's "Install into MCP clients" actions.
-- **Peers**: every other process. On startup they get `EADDRINUSE`, check
-  `http://127.0.0.1:47615/webmcp` to make sure the port really belongs to a
-  webmcp hub, then connect to `ws://127.0.0.1:47615/peer` and send their tool
-  calls through the hub.
-- **Failover**: when the hub's session ends (or the process is killed), its
-  sockets close. Peers immediately race to bind the port (with random
-  jitter); the winner becomes the new hub, the others reconnect to it as
-  peers, and the extension's reconnect loop (exponential backoff, 0.25 s →
-  5 s) finds the new hub within about a second. Tool calls made during the
-  switch wait for it (up to ~10 s); a call that was *in flight* on the dead
-  hub fails with "the webmcp hub went away … try again" — it's not retried
-  automatically because clicks/navigation aren't idempotent.
-- A server process now exits when its MCP client closes stdin, so finished
-  sessions no longer leave orphan processes holding the port.
-- **No hanging calls**: if Chrome isn't running, calls fail fast with
-  "Browser extension not connected — is Chrome open with the NeuroSquad Browser MCP extension enabled?".
-  Right after a failover or an extension drop the hub waits up to 6 s for the
-  extension to come back first. Every request also has a timeout (15 s).
-- **Keep-alive**: the extension pings the hub every 20 s (keeps the MV3
-  service worker alive and detects dead sockets) and a 30 s `chrome.alarms`
-  alarm wakes the worker to reconnect if it was suspended while disconnected.
-  The hub pings all sockets every 15 s and drops ones that stopped answering.
+- **Hub** — the process that bound `127.0.0.1:47615`. The extension connects to it. It forwards
+  requests from all sessions over one socket (request ids are UUIDs), routes each answer back,
+  keeps the per-tab console buffers and answers the popup's install actions.
+- **Peers** — every other process. On `EADDRINUSE` they check `http://127.0.0.1:47615/webmcp` to make
+  sure the port belongs to a hub, then connect to `/peer` and send their calls through it.
+- **Failover** — when the hub's session ends, peers race to bind the port (with jitter); the winner
+  becomes the hub and the extension's reconnect loop (0.25 s → 5 s backoff) finds it within about a
+  second. Calls made during the switch wait for it (up to ~10 s); a call that was in flight on the
+  dead hub fails with a "try again" error — clicks and navigation aren't idempotent, so they are not
+  retried automatically.
+- **No hanging calls** — if Chrome isn't running, calls fail fast with a clear error. Every request
+  has a 15 s timeout.
+- **Keep-alive** — the extension pings the hub every 20 s, the hub pings every socket every 15 s,
+  and a server process exits when its MCP client closes stdin, so finished sessions don't hold the
+  port.
 
-### Security
+## Troubleshooting
 
-- The hub listens on `127.0.0.1` only, never on all interfaces.
-- The extension endpoint (`/`) only accepts WebSocket handshakes whose
-  `Origin` is `chrome-extension://<id>`; a web page (Origin `https://…`) or a
-  client without Origin is rejected with 403. To pin your exact extension
-  id, set `WEBMCP_EXTENSION_IDS=<id>[,<id>…]` in the server's environment
-  (the id is shown in `chrome://extensions`).
-- The peer endpoint (`/peer`) requires the header `x-webmcp-token` matching
-  a random 256-bit token stored in `~/.webmcp/peer-token` (created by the
-  first instance, mode 600; override the path with `WEBMCP_TOKEN_FILE`), and
-  must carry *no* `Origin`. Browsers can't set custom headers on WebSockets
-  and pages can't read that file, so a website can't pose as a peer.
+- **Red dot in the popup** — no server is running on that port: start (or restart) an MCP session,
+  and check the port in the popup matches `WEBMCP_PORT`.
+- **"Could not reach the WebMCP hub … port held by another program or an old webmcp version?"** —
+  something else owns the port. Restart that session or wait: the server retries and takes over when
+  the port frees.
+- **`browser_connection_status`** shows `role`, `hubPid`, `peers` and `connected` from any session.
+- Server logs go to stderr (stdout carries MCP). Extension logs are in the service worker console
+  (`chrome://extensions` → the extension → *service worker*).
 
-### Troubleshooting
+## Notes and limitations
 
-- **Popup** shows a green "Connected" pill with the hub's pid, the number of
-  MCP sessions and the server version. A red "Disconnected" pill = no hub on
-  that port (no session running, or the port setting differs).
-- **`browser_connection_status`** from any session shows `role`, `hubPid`,
-  `peers` and `connected`.
-- **"Could not reach the WebMCP hub … port held by another program or an old
-  webmcp version?"** — something that isn't a 1.1+ webmcp hub owns the port
-  (typically a webmcp 1.0 server from a session started before the update).
-  Restart / `/mcp`-reconnect that session, or just wait: the instance retries
-  every few seconds and takes over as soon as the port frees.
-- Server logs go to stderr (stdout is reserved for MCP JSON-RPC); the
-  extension logs to its service worker console in `chrome://extensions`.
-- Tests: `cd server && npm test` (spawns real server processes on a random
-  test port with a temporary token file and a fake extension; covers
-  election, routing of concurrent requests, failover, origin/token checks).
+- One extension connection at a time; a new one (extension reload, a second profile) replaces the
+  old one.
+- Console buffers live in the hub; after a failover they start empty. Logs from frames that existed
+  before the extension was installed or reloaded appear after the page is reloaded.
+- `browser_execute_script` and `browser_query_selector` run in the page's main world. On strict-CSP
+  pages scripts go through the DevTools protocol instead (see `debugger` above).
+- `browser_screenshot` briefly activates the target tab if it isn't the visible one.
 
-### Compatibility
+## Compatibility
 
-Extension ↔ hub messages are unchanged from 1.0, so a 1.0 extension still
-works with a 1.1 hub (it just doesn't get the faster reconnect, keep-alive
-pings or session count, and it connects to `localhost` rather than
-`127.0.0.1`). **Reload the extension in `chrome://extensions` to get 1.1.**
-A 1.0 *server* doesn't know about peers; restart sessions that were started
-before the update.
+Only the user-facing name changed in 1.4.0. The MCP config key is still `webmcp` (tools appear as
+`mcp__webmcp__browser_*`), and the tool names, port `47615`, the `WEBMCP_*` variables, the token
+file `~/.webmcp/peer-token`, the hub protocol and the `extension/` folder are unchanged, so existing
+installs keep working after reloading the extension.
 
-## Notes & limitations
+## Development
 
-- Only one Chrome extension instance is expected to connect at a time; if a
-  new connection appears (e.g. extension reload, or a second Chrome profile
-  with the extension), it replaces the old one.
-- Console log buffers live in the hub process; after a failover the new hub
-  starts with empty buffers.
-- `browser_execute_script` and `browser_query_selector` inject code into the
-  page's main JS world (`chrome.scripting.executeScript` with
-  `world: "MAIN"`). Pages with a strict Content-Security-Policy that
-  disallows `unsafe-eval` may block dynamically constructed scripts.
-- `browser_screenshot` briefly focuses the target tab if it isn't already
-  active, since Chrome can only capture the visible tab of a window.
-- Console log capture works by wrapping `console.*` in a `MAIN`-world
-  content script injected at `document_start`. It won't see logs emitted
-  before the content script attaches to a frame that existed prior to
-  install/reload (reload the page after installing the extension).
-- If no MCP session is running (no server process), the extension will
-  just keep retrying the WebSocket connection in the background; no action
-  is needed once a session starts again.
+```sh
+npm ci                                    # repository tooling (ESLint)
+npm ci --prefix server --ignore-scripts   # server dependencies
+npm run check                             # node --check on all JS + manifest.json validation
+npm run lint
+npm test                                  # real server processes, a fake extension, random ports
+```
 
-## 1.2.0 — strict-CSP pages and file uploads
+CI runs these on Ubuntu, Windows and macOS and builds the Web Store zip of `extension/` as an
+artifact. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
 
-- `browser_execute_script` runs through the DevTools protocol (`chrome.debugger`,
-  `Runtime.evaluate`) when the page's CSP forbids `eval` (x.com, github.com…).
-  Chrome shows "NeuroSquad Browser MCP started debugging this browser" for the moment of
-  the call.
-- `browser_upload_files({ selector, paths })` sets local files on an
-  `<input type=file>` (CDP `DOM.setFileInputFiles`) — attachments, uploads.
-- Default port is **47615** (was 8765, which NeuroSquad's remote access also
-  uses); a saved 8765 in the extension is forgotten.
+## Part of NeuroSquad
 
-## 1.4.0 — NeuroSquad Browser MCP
+NeuroSquad Browser MCP is built by the team behind [NeuroSquad](https://neurosquad.ai) — a desktop
+app that runs Claude Code, Codex, OpenCode and other coding agents side by side on one canvas and
+tells you the moment one needs you. Its browser cards and agents use this extension to work in your
+real browser. Prefer the terminal? See [nsq](https://github.com/glmn-ai/neurosquad-cli), our
+open-source CLI for running several coding agents at once.
 
-- Renamed from WebMCP to **NeuroSquad Browser MCP**: extension name, toolbar
-  title, popup, and the MCP `serverInfo` clients see (name
-  `neurosquad-browser-mcp`, title "NeuroSquad Browser MCP").
-- New icons (16/32/48/128 px in `extension/icons/`): the NeuroSquad mark with
-  a green MCP tag (no tag at 16 px, where it would not be legible).
-- Popup restyled in NeuroSquad's dark theme: connection pill, hub pid, MCP
-  session count, server and extension versions.
-- Unchanged for compatibility: the `webmcp` config key, `browser_*` tool
-  names, port 47615, `~/.webmcp/peer-token`, the hub protocol and the
-  extension folder. **Reload the extension in `chrome://extensions`**; MCP
-  sessions pick up the new server name on their next start (or `/mcp`
-  reconnect).
+## License
+
+[MIT](LICENSE) © 2026 Stanislav Gelman and NeuroSquad contributors.
+
+Bundled fonts — [Inter](https://github.com/rsms/inter), [Manrope](https://github.com/googlefonts/manrope)
+and [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) — are licensed under the SIL Open
+Font License 1.1; their license texts are in [`extension/fonts/licenses/`](extension/fonts/licenses/).
+The NeuroSquad name and logo identify the NeuroSquad project; please don't use them in a way that
+suggests your fork or product is ours.

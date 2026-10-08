@@ -18,12 +18,24 @@
     "chrome-extension",
     "browser-automation"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "Stanislav Gelman and NeuroSquad contributors",
+  "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "jsonc-parser": "^3.3.1",
     "ws": "^8.21.1",
     "zod": "^4.4.3"
+  },
+  "homepage": "https://github.com/glmn-ai/neurosquad-browser-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/glmn-ai/neurosquad-browser-mcp.git",
+    "directory": "server"
+  },
+  "bugs": {
+    "url": "https://github.com/glmn-ai/neurosquad-browser-mcp/issues"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

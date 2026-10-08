@@ -1,0 +1,81 @@
+name: Bug report
+description: Something in the extension or the MCP server does not work as expected.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please search [existing issues](https://github.com/glmn-ai/neurosquad-browser-mcp/issues) first.
+        **Security vulnerabilities must not be reported here** — see [SECURITY.md](https://github.com/glmn-ai/neurosquad-browser-mcp/blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug. Which tool call (e.g. `browser_click`) and on what kind of page?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use a public page (or a minimal HTML file) if you can — please do not share pages with your private data.
+      placeholder: |
+        1. Open https://example.com
+        2. Ask the agent to …
+    validations:
+      required: true
+  - type: input
+    id: extension-version
+    attributes:
+      label: Extension version
+      description: Shown in the popup and in chrome://extensions.
+    validations:
+      required: true
+  - type: input
+    id: server-version
+    attributes:
+      label: Server version
+      description: Shown in the popup ("server …") or `browser_connection_status`.
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: "Chrome 141, Edge 141, Brave …"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: MCP client
+      multiple: true
+      options:
+        - NeuroSquad
+        - Claude Code
+        - Codex CLI
+        - OpenCode
+        - Cursor
+        - Other
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Server stderr and/or the extension's service worker console (chrome://extensions → "service worker"). Remove tokens, URLs and paths you do not want to share.
+      render: shell

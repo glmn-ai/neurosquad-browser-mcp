@@ -1,0 +1,17 @@
+{
+  "name": "neurosquad-browser-mcp",
+  "private": true,
+  "description": "Repository tooling for NeuroSquad Browser MCP (the extension lives in extension/, the MCP server in server/).",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "check": "node scripts/check.mjs",
+    "test": "npm --prefix server test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0"
+  }
+}
