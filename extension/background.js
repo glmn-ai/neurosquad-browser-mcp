@@ -223,6 +223,7 @@ const glowTimers = new Map();
 // What the island says the agent is doing, per request method.
 const ACTION_LABELS = {
   navigate: ["Opening a page", "Открывает страницу"],
+  openTab: ["Opening a tab", "Открывает вкладку"],
   click: ["Clicking", "Нажимает"],
   fill: ["Typing", "Вводит текст"],
   uploadFiles: ["Attaching files", "Прикрепляет файлы"],
@@ -422,6 +423,21 @@ function sendEvent(name, data) {
 // Handlers: one per MCP tool. Params come straight from the MCP server.
 // ---------------------------------------------------------------------------
 
+// Tabs opened through browser_open_tab, kept in session storage so the list
+// survives the service worker going to sleep.
+async function openedTabs() {
+  const { openedTabs: ids } = await chrome.storage.session.get("openedTabs");
+  return Array.isArray(ids) ? ids : [];
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  openedTabs()
+    .then((ids) => {
+      if (ids.includes(tabId)) return chrome.storage.session.set({ openedTabs: ids.filter((id) => id !== tabId) });
+    })
+    .catch(() => {});
+});
+
 const handlers = {
   async listTabs() {
     const tabs = await chrome.tabs.query({});
@@ -528,6 +544,25 @@ const handlers = {
   async navigate({ tabId, url }) {
     await chrome.tabs.update(tabId, { url });
     return { navigated: true, url };
+  },
+
+  async openTab({ url, active }) {
+    const tab = await chrome.tabs.create({ url, active: active === true });
+    const opened = await openedTabs();
+    opened.push(tab.id);
+    await chrome.storage.session.set({ openedTabs: opened });
+    return { id: tab.id, windowId: tab.windowId, url };
+  },
+
+  // Only tabs this extension opened: an agent never closes the user's tabs.
+  async closeTab({ tabId }) {
+    const opened = await openedTabs();
+    if (!opened.includes(tabId)) {
+      throw new Error("This tab wasn't opened by browser_open_tab, so it can't be closed.");
+    }
+    await chrome.tabs.remove(tabId);
+    await chrome.storage.session.set({ openedTabs: opened.filter((id) => id !== tabId) });
+    return { closed: true, tabId };
   },
 
   async executeScript({ tabId, code }) {
