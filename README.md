@@ -53,7 +53,7 @@ sessions are attached, and the server and extension versions.
 | `browser_get_console_logs` | Buffered `console.*` output and uncaught errors of a tab. |
 | `browser_connection_status` | Whether the extension is connected, plus this server's role (`hub`/`peer`), the hub pid and the number of peers. |
 
-Tab tools take an optional `tabId`; without it, the active tab of the last focused window is used.
+Every tool except `browser_list_tabs`, `browser_open_tab`, `browser_close_tab` and `browser_connection_status` takes an optional `tabId`; without it, the active tab of the last focused window is used.
 
 ## Install
 
