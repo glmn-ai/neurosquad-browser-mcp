@@ -61,6 +61,38 @@
     </section>
 
     <section class="card">
+      <label class="toggle-row" for="show-cursor">
+        <span class="toggle-text">
+          <span class="toggle-title" data-i18n="cursorTitle">Show cursor &amp; highlight</span>
+          <span class="toggle-hint" data-i18n="cursorHint">The agent's cursor glides to each element and outlines what it works on.</span>
+        </span>
+        <input id="show-cursor" type="checkbox" class="switch" checked />
+      </label>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <span class="section-label" data-i18n="policyTitle">Site access</span>
+        <span class="policy-default" data-i18n="policyDefault">Other sites: full</span>
+      </div>
+      <ul id="policy-list" class="policy-list"></ul>
+      <form id="policy-form" class="row policy-add">
+        <input id="policy-pattern" class="mono" type="text" placeholder="x.com" spellcheck="false" autocomplete="off" />
+        <select id="policy-mode" class="policy-select">
+          <option value="read-only" data-i18n="modeReadOnly">Read-only</option>
+          <option value="blocked" data-i18n="modeBlocked">Blocked</option>
+          <option value="full" data-i18n="modeFull">Full</option>
+        </select>
+        <button type="submit" class="btn btn-ghost" data-i18n="add">Add</button>
+      </form>
+      <p id="policy-error" class="client-error" hidden></p>
+      <p class="hint" data-i18n="policyHint">
+        Read-only: agents can read, scroll and screenshot, but not click, type, run scripts or send non-GET requests.
+        Blocked: nothing but listing tabs. A domain covers its subdomains.
+      </p>
+    </section>
+
+    <section class="card">
       <div class="section-header">
         <span class="section-label">Install into MCP clients</span>
         <button id="refresh-clients" class="btn-link">Refresh</button>
