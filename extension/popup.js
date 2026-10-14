@@ -150,7 +150,139 @@ async function onClientAction(client) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Settings: the agent cursor toggle and the site policy (chrome.storage.local,
+// read by the service worker on every request).
+// ---------------------------------------------------------------------------
+
+const RU = /^ru\b/i.test(navigator.language || "");
+const I18N = {
+  cursorTitle: ["Show cursor & highlight", "Показывать курсор и подсветку"],
+  cursorHint: [
+    "The agent's cursor glides to each element and outlines what it works on.",
+    "Курсор агента плавно подводится к элементам и обводит то, с чем он работает.",
+  ],
+  policyTitle: ["Site access", "Доступ к сайтам"],
+  policyDefault: ["Other sites: full", "Остальные сайты: полный"],
+  modeFull: ["Full", "Полный"],
+  modeReadOnly: ["Read-only", "Только чтение"],
+  modeBlocked: ["Blocked", "Запрещён"],
+  add: ["Add", "Добавить"],
+  remove: ["Remove", "Удалить"],
+  policyHint: [
+    "Read-only: agents can read, scroll and screenshot, but not click, type, run scripts or send non-GET requests. Blocked: nothing but listing tabs. A domain covers its subdomains.",
+    "Только чтение: агент читает, прокручивает и делает снимки, но не нажимает, не вводит текст, не запускает скрипты и не шлёт запросы кроме GET. Запрещён: только список вкладок. Домен включает поддомены.",
+  ],
+  patternLabel: ["Site pattern", "Шаблон сайта"],
+  modeLabel: ["Access mode", "Режим доступа"],
+  badPattern: ["Enter a host like x.com or *.example.com.", "Введите домен, например x.com или *.example.com."],
+};
+const tr = (key) => (I18N[key] ? I18N[key][RU ? 1 : 0] : key);
+const MODES = ["full", "read-only", "blocked"];
+const MODE_KEYS = { full: "modeFull", "read-only": "modeReadOnly", blocked: "modeBlocked" };
+
+function translatePage() {
+  for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = tr(el.dataset.i18n);
+  for (const el of document.querySelectorAll("[data-i18n-label]")) el.setAttribute("aria-label", tr(el.dataset.i18nLabel));
+}
+
+// "https://www.x.com/home" -> "www.x.com"; "*.x.com" stays.
+function normalizePattern(raw) {
+  let s = String(raw || "").trim().toLowerCase();
+  s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//, "").replace(/[/?#].*$/, "").replace(/:\d+$/, "");
+  if (s === "*") return s;
+  const host = s.startsWith("*.") ? s.slice(2) : s;
+  // Letters (incl. IDN), digits and hyphens in dot-separated labels, or an IP.
+  if (!/^[\p{L}\p{N}-]+(\.[\p{L}\p{N}-]+)*$|^\[?[0-9a-f:.]+\]?$/u.test(host)) return null;
+  return s;
+}
+
+async function loadPolicy() {
+  const { sitePolicy } = await chrome.storage.local.get("sitePolicy");
+  return Array.isArray(sitePolicy) ? sitePolicy : [];
+}
+
+async function savePolicy(rules) {
+  await chrome.storage.local.set({ sitePolicy: rules });
+  renderPolicy(rules);
+}
+
+function modeSelect(value, pattern, onChange) {
+  const select = document.createElement("select");
+  select.className = `policy-select mode-${value}`;
+  select.setAttribute("aria-label", `${tr("modeLabel")}: ${pattern}`);
+  for (const mode of MODES) {
+    const opt = document.createElement("option");
+    opt.value = mode;
+    opt.textContent = tr(MODE_KEYS[mode]);
+    select.appendChild(opt);
+  }
+  select.value = value;
+  select.addEventListener("change", () => onChange(select.value));
+  return select;
+}
+
+function renderPolicy(rules) {
+  const list = document.getElementById("policy-list");
+  list.innerHTML = "";
+  rules.forEach((rule, i) => {
+    const li = document.createElement("li");
+    li.className = "policy-row";
+    const pattern = document.createElement("span");
+    pattern.className = "policy-pattern mono";
+    pattern.textContent = rule.pattern;
+    pattern.title = rule.pattern;
+    const select = modeSelect(rule.mode, rule.pattern, async (mode) => {
+      const next = await loadPolicy();
+      if (next[i]) next[i] = { ...next[i], mode };
+      await savePolicy(next);
+    });
+    const remove = document.createElement("button");
+    remove.className = "policy-remove";
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.title = tr("remove");
+    remove.setAttribute("aria-label", `${tr("remove")} ${rule.pattern}`);
+    remove.addEventListener("click", async () => {
+      const next = await loadPolicy();
+      next.splice(i, 1);
+      await savePolicy(next);
+    });
+    li.append(pattern, select, remove);
+    list.appendChild(li);
+  });
+}
+
+async function initSettings() {
+  translatePage();
+  const toggle = document.getElementById("show-cursor");
+  const { showCursor } = await chrome.storage.local.get("showCursor");
+  toggle.checked = showCursor !== false;
+  toggle.addEventListener("change", () => chrome.storage.local.set({ showCursor: toggle.checked }));
+
+  renderPolicy(await loadPolicy());
+  const form = document.getElementById("policy-form");
+  const input = document.getElementById("policy-pattern");
+  const err = document.getElementById("policy-error");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const pattern = normalizePattern(input.value);
+    if (!pattern) {
+      err.textContent = tr("badPattern");
+      err.hidden = false;
+      return;
+    }
+    err.hidden = true;
+    const mode = document.getElementById("policy-mode").value;
+    const rules = (await loadPolicy()).filter((r) => r.pattern !== pattern);
+    rules.push({ pattern, mode });
+    await savePolicy(rules);
+    input.value = "";
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  initSettings();
   document.getElementById("ext-version").textContent = `v${chrome.runtime.getManifest().version}`;
   refreshStatus();
   refreshClients();

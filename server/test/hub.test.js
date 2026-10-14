@@ -84,6 +84,28 @@ class FakeExtension {
         case "listTabs":
           result = [{ id: 7, title: "Active", url: "https://example.test/", active: true }];
           break;
+        // 1.7 tools: echo what arrived so tests can check the server's defaults.
+        case "click":
+        case "type":
+        case "pressKey":
+        case "scroll":
+        case "waitFor":
+        case "fetch":
+          result = { method: msg.method, params: msg.params };
+          break;
+        case "snapshot":
+          result = {
+            url: "https://example.test/",
+            title: "Snap",
+            count: 2,
+            truncated: false,
+            text: ['- [e1] button "Go"', '- [e2] textbox "Name"'].join("\n"),
+          };
+          break;
+        case "screenshot":
+          this.lastScreenshot = msg.params;
+          result = { dataUrl: "data:image/png;base64,iVBORw0KGgo=" };
+          break;
         default:
           ok = false;
           error = `Unknown method: ${msg.method}`;
@@ -216,6 +238,78 @@ test("console logs captured on the hub are readable from every instance", async 
     }, { what: "console logs" });
     assert.equal(logs[0].text, "hello from tab 42");
   }
+});
+
+test("1.7 tools are listed", async () => {
+  const { tools } = await alive()[0].client.listTools();
+  const names = new Set(tools.map((t) => t.name));
+  for (const name of [
+    "browser_click", "browser_type", "browser_press_key", "browser_wait_for", "browser_snapshot",
+    "browser_scroll", "browser_fetch", "browser_screenshot", "browser_open_tab", "browser_fill",
+  ]) assert.ok(names.has(name), `${name} missing`);
+});
+
+test("1.7 tools reach the extension with their defaults", async () => {
+  const inst = alive()[0];
+  const click = await call(inst, "browser_click", { tabId: 3, ref: "e4" });
+  assert.equal(click.method, "click");
+  assert.deepEqual(
+    { ...click.params },
+    { tabId: 3, ref: "e4", trusted: true, button: "left", clickCount: 1 }
+  );
+  const dbl = await call(inst, "browser_click", { x: 10, y: 20, clickCount: 2, trusted: true });
+  assert.equal(dbl.params.tabId, 7, "defaults to the active tab");
+  assert.equal(dbl.params.x, 10);
+  assert.equal(dbl.params.clickCount, 2);
+
+  const typed = await call(inst, "browser_type", { tabId: 3, selector: "#q", text: "hi" });
+  assert.deepEqual({ ...typed.params }, { tabId: 3, selector: "#q", text: "hi", clear: false, delay: 0 });
+
+  const key = await call(inst, "browser_press_key", { tabId: 3, key: "Control+A" });
+  assert.deepEqual({ ...key.params }, { tabId: 3, key: "Control+A", repeat: 1 });
+
+  const wait = await call(inst, "browser_wait_for", { tabId: 3, text: "Done" });
+  assert.equal(wait.params.timeout, 10_000);
+  assert.equal(wait.params.state, "visible");
+
+  const scroll = await call(inst, "browser_scroll", { tabId: 3, to: "bottom" });
+  assert.equal(scroll.params.to, "bottom");
+  assert.equal(scroll.params.waitMs, 600);
+
+  const fetched = await call(inst, "browser_fetch", { tabId: 3, url: "/api", method: "POST", body: "{}" });
+  assert.deepEqual(
+    { ...fetched.params },
+    { tabId: 3, url: "/api", method: "POST", body: "{}", responseType: "auto", maxLength: 20_000 }
+  );
+
+  const snap = await call(inst, "browser_snapshot", { tabId: 3 });
+  assert.match(snap, /^Page: Snap/);
+  assert.match(snap, /\[e1\] button "Go"/);
+
+  const shot = await inst.client.callTool({ name: "browser_screenshot", arguments: { tabId: 3, ref: "e2", fullPage: false } });
+  assert.equal(shot.isError, undefined);
+  assert.equal(shot.content[0].type, "image");
+  assert.deepEqual({ ...ext.lastScreenshot }, { tabId: 3, ref: "e2", fullPage: false });
+});
+
+test("1.7 tools reject bad arguments before reaching the extension", async () => {
+  const inst = alive()[0];
+  const before = ext.handled;
+  await assert.rejects(call(inst, "browser_click", { tabId: 3 }), /selector or a ref/);
+  await assert.rejects(call(inst, "browser_click", { tabId: 3, x: 5 }), /both x and y/);
+  await assert.rejects(call(inst, "browser_click", { tabId: 3, selector: "a", ref: "e1" }), /not both/);
+  await assert.rejects(call(inst, "browser_wait_for", { tabId: 3 }), /at least one/);
+  await assert.rejects(call(inst, "browser_fetch", { tabId: 3, url: "/x", body: "a" }), /can't have a body/);
+  await assert.rejects(call(inst, "browser_scroll", { tabId: 3 }), /x\/y pixels/);
+  await assert.rejects(call(inst, "browser_fill", { tabId: 3, value: "v" }), /selector or a ref/);
+  // Schema errors (zod): not a ref, delay out of range, timeout over 60 s.
+  await assert.rejects(call(inst, "browser_click", { tabId: 3, ref: "button" }));
+  await assert.rejects(call(inst, "browser_type", { tabId: 3, text: "x", delay: 5000 }));
+  await assert.rejects(call(inst, "browser_wait_for", { tabId: 3, text: "x", timeout: 120_000 }));
+  await assert.rejects(call(inst, "browser_fetch", { tabId: 3, url: "/x", method: "POST", body: "a".repeat(1_000_001) }));
+  const headers = Object.fromEntries(Array.from({ length: 65 }, (_, i) => [`h${i}`, "v"]));
+  await assert.rejects(call(inst, "browser_fetch", { tabId: 3, url: "/x", headers }));
+  assert.equal(ext.handled, before, "a rejected call still reached the extension");
 });
 
 test("extension-initiated (popup) requests are answered by the hub", async () => {
