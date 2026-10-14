@@ -4,7 +4,7 @@
 // (it needs a Chrome window with the unpacked extension and, on the first
 // run, downloads React/Draft.js from unpkg for the test page).
 //
-//   node scripts/e2e.mjs --chrome <path to Chrome for Testing> [--work <dir>] [--shots <dir>] [--keep]
+//   node scripts/e2e.mjs --chrome <path to Chrome for Testing> [--work <parent dir>] [--shots <dir>] [--keep]
 //
 // Everything is private to the run: a fresh --user-data-dir, a copy of
 // extension/ whose default port is patched to a random free port (so it never
@@ -41,11 +41,14 @@ if (!CHROME || !fs.existsSync(CHROME)) {
   console.error("Pass --chrome <path to Chrome for Testing> (or CHROME_PATH).");
   process.exit(2);
 }
-const WORK = path.resolve(opt("work", path.join(os.tmpdir(), `webmcp-e2e-${process.pid}`)));
+// --work is a parent folder: each run gets its own fresh subfolder there, and
+// only that subfolder is deleted afterwards.
+const WORK_PARENT = path.resolve(opt("work", os.tmpdir()));
+fs.mkdirSync(WORK_PARENT, { recursive: true });
+const WORK = fs.mkdtempSync(path.join(WORK_PARENT, "webmcp-e2e-"));
 const SHOTS = opt("shots") ? path.resolve(opt("shots")) : null;
 const KEEP = args.includes("--keep");
-const VENDOR = path.join(path.dirname(WORK), "vendor"); // shared download cache
-fs.mkdirSync(WORK, { recursive: true });
+const VENDOR = path.join(WORK_PARENT, "webmcp-e2e-vendor"); // download cache, reused across runs
 fs.mkdirSync(VENDOR, { recursive: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -559,6 +562,26 @@ try {
     return `${snapText.split("\n")[1]}; refs ${snapRef}, ${emailRef}`;
   });
 
+  await check("refs survive an SPA URL change after a new snapshot; bad selector is an error", async () => {
+    await js(mainTab, "history.pushState({}, \"\", \"/?spa=1\"); return true");
+    const snap = await call("browser_snapshot", { tabId: mainTab });
+    const ref = (snap.match(/\[(e\d+)\] button "Snap target"/) || [])[1];
+    assert(ref, "no ref for Snap target after pushState");
+    const before = Number(await js(mainTab, "return document.getElementById(\"snap-count\").textContent"));
+    await call("browser_click", { tabId: mainTab, ref });
+    const after = Number(await js(mainTab, "return document.getElementById(\"snap-count\").textContent"));
+    await js(mainTab, "history.pushState({}, \"\", \"/\"); return true");
+    assert(after === before + 1, `ref ${ref} after pushState: ${before} -> ${after}`);
+    let err = "";
+    try {
+      await call("browser_wait_for", { tabId: mainTab, selector: "div[", state: "detached", timeout: 1000 });
+    } catch (e) {
+      err = e.message;
+    }
+    assert(/Invalid CSS selector/.test(err), `bad selector: ${err || "matched"}`);
+    return `fresh ref ${ref} works`;
+  });
+
   await check("wait_for: delayed element, text, timeout error", async () => {
     await call("browser_click", { tabId: mainTab, selector: "#spawn" });
     const r = await call("browser_wait_for", { tabId: mainTab, selector: "#later", timeout: 5000 });
@@ -669,6 +692,8 @@ try {
 
   await check("fetch returns JSON (same origin), POST, CORS rules", async () => {
     const r = await call("browser_fetch", { tabId: mainTab, url: "/api/data" });
+    const cut = await call("browser_fetch", { tabId: mainTab, url: "/api/data", maxLength: 5 });
+    assert(cut.truncated && cut.body.length === 5 && cut.bodyType === "text", JSON.stringify(cut));
     assert(r.status === 200 && r.bodyType === "json" && r.body.ok === true, JSON.stringify(r));
     const p = await call("browser_fetch", { tabId: mainTab, url: "/api/echo", method: "POST", body: "hi", headers: { "content-type": "text/plain" } });
     assert(p.body.method === "POST" && p.body.body === "hi", JSON.stringify(p));

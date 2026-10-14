@@ -461,10 +461,18 @@
   // Element refs (from browser_snapshot) and target resolution
   // ---------------------------------------------------------------------------
   const refs = new Map(); // "e12" -> WeakRef(element)
-  const refOf = new WeakMap(); // element -> "e12"
+  let refOf = new WeakMap(); // element -> "e12"
   let refSeq = 0;
   let refsUrl = "";
   const pageKey = () => location.origin + location.pathname + location.search;
+
+  // A URL change (SPA navigation) invalidates every ref; a new snapshot then
+  // hands out fresh ids, also for elements that stayed in the DOM.
+  function clearRefs() {
+    refs.clear();
+    refOf = new WeakMap();
+    refsUrl = "";
+  }
 
   function refFor(el) {
     let id = refOf.get(el);
@@ -478,10 +486,7 @@
 
   function resolve(t) {
     if (t && t.ref) {
-      if (refsUrl && refsUrl !== pageKey()) {
-        refs.clear();
-        refsUrl = "";
-      }
+      if (refsUrl && refsUrl !== pageKey()) clearRefs();
       const el = refs.get(t.ref)?.deref();
       if (!el || !el.isConnected) {
         throw new Error(`Ref ${t.ref} is stale or unknown (the page navigated or re-rendered). Call browser_snapshot again.`);
@@ -754,6 +759,7 @@
       }
       if (!root) throw new Error(`No element matches ${selector}`);
     }
+    if (refsUrl && refsUrl !== pageKey()) clearRefs();
     refsUrl = pageKey();
     const lines = [];
     let length = 0;
@@ -882,7 +888,10 @@
       try {
         el = resolve(target);
       } catch (err) {
-        if (target.ref && state !== "detached" && state !== "hidden") throw err;
+        // Only "not there" counts as not matched; a bad selector or a stale ref
+        // (unless waiting for it to go away) is an error, not a wait.
+        const missing = /^No element matches/.test(err.message) || (target.ref && /stale/.test(err.message) && (state === "detached" || state === "hidden"));
+        if (!missing) throw err;
       }
       const visible = !!el && isRendered(el);
       const ok =
@@ -943,11 +952,30 @@
     res.headers.forEach((v, k) => {
       resHeaders[k] = v;
     });
-    const raw = method === "HEAD" ? "" : await res.text();
+    // Stream the body and stop at maxLength, so a huge (or endless) response
+    // never has to fit in the tab's memory.
+    let raw = "";
+    let truncated = false;
+    if (method !== "HEAD" && res.body) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) {
+          raw += decoder.decode();
+          break;
+        }
+        raw += decoder.decode(value, { stream: true });
+        if (raw.length > maxLength) {
+          truncated = true;
+          reader.cancel().catch(() => {});
+          break;
+        }
+      }
+    }
     const type = res.headers.get("content-type") || "";
     let bodyOut = raw;
     let bodyType = "text";
-    const truncated = raw.length > maxLength;
     if (!truncated && (responseType === "json" || (responseType === "auto" && /[/+]json\b/i.test(type)))) {
       try {
         bodyOut = JSON.parse(raw);
@@ -967,7 +995,7 @@
       headers: resHeaders,
       bodyType,
       truncated,
-      length: raw.length,
+      charsRead: raw.length, // the whole body unless truncated
       body: bodyOut,
     };
   }

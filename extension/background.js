@@ -638,18 +638,25 @@ const handlers = {
       } catch (err) {
         console.log(`[webmcp] Page.captureScreenshot failed (${err.message}); activating the tab instead`);
       }
+      // Briefly switch to the tab, then give the user their tab back.
+      let previous = null;
       if (!tab.active) {
+        [previous] = await chrome.tabs.query({ active: true, windowId: tab.windowId });
         await chrome.tabs.update(tabId, { active: true });
         await sleep(150);
       }
-      await sleep(60);
-      let dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
-      if (rect) {
-        // The element was scrolled into view: crop the visible capture to it.
-        const fresh = await pageCall(tabId, "captureRect", target, null);
-        dataUrl = await cropDataUrl(dataUrl, fresh.viewport, fresh.dpr);
+      try {
+        await sleep(60);
+        let dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+        if (rect) {
+          // The element was scrolled into view: crop the visible capture to it.
+          const fresh = await pageCall(tabId, "captureRect", target, null);
+          dataUrl = await cropDataUrl(dataUrl, fresh.viewport, fresh.dpr);
+        }
+        return { dataUrl, element: rect?.element, method: "visible-tab", note: fullPage ? "Full page capture failed; this is the visible area." : undefined };
+      } finally {
+        if (previous && previous.id !== tabId) await chrome.tabs.update(previous.id, { active: true }).catch(() => {});
       }
-      return { dataUrl, element: rect?.element, method: "visible-tab", note: fullPage ? "Full page capture failed; this is the visible area." : undefined };
     } finally {
       await setOverlayHidden(tabId, false);
       if (target) pageCallQuiet(tabId, "highlightDone", 300);
@@ -692,7 +699,7 @@ const handlers = {
       let check = null;
       if (ok && (loadState || target || text)) {
         check = await pageCall(tabId, "waitCheck", { target, state, text, label: FOUND_LABEL }).catch((err) => {
-          if (/stale/.test(err.message)) throw err;
+          if (/stale|Invalid CSS selector|Pass a selector/.test(err.message)) throw err;
           return null; // navigating: the document isn't there yet
         });
         if (!check) {
@@ -898,7 +905,10 @@ async function enforcePolicy(method, params) {
   const tab = await chrome.tabs.get(params.tabId);
   const write =
     WRITE_METHODS.has(method) || (method === "fetch" && !["GET", "HEAD"].includes(String(params.method || "GET").toUpperCase()));
-  check(tab.url || tab.pendingUrl || "", write);
+  // Both the committed and the pending URL: a navigation to a blocked site
+  // in progress must not slip through on the old URL.
+  check(tab.url || "", write);
+  if (tab.pendingUrl) check(tab.pendingUrl, write);
   if (method === "navigate") check(params.url, false);
 }
 

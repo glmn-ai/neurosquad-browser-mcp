@@ -306,6 +306,9 @@ test("1.7 tools reject bad arguments before reaching the extension", async () =>
   await assert.rejects(call(inst, "browser_click", { tabId: 3, ref: "button" }));
   await assert.rejects(call(inst, "browser_type", { tabId: 3, text: "x", delay: 5000 }));
   await assert.rejects(call(inst, "browser_wait_for", { tabId: 3, text: "x", timeout: 120_000 }));
+  await assert.rejects(call(inst, "browser_fetch", { tabId: 3, url: "/x", method: "POST", body: "a".repeat(1_000_001) }));
+  const headers = Object.fromEntries(Array.from({ length: 65 }, (_, i) => [`h${i}`, "v"]));
+  await assert.rejects(call(inst, "browser_fetch", { tabId: 3, url: "/x", headers }));
   assert.equal(ext.handled, before, "a rejected call still reached the extension");
 });
 

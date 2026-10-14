@@ -479,13 +479,17 @@ export function registerTools(server, bridge) {
     {
       title: "HTTP request from the page",
       description:
-        "Run fetch() from inside the page: same origin and cookies as the page, so it can call the site's own API as the signed-in user. Cross-origin requests work only where the other server's CORS allows the page's origin. Returns status, headers and the body (parsed JSON when the response is JSON), truncated to maxLength characters.",
+        "Run fetch() from inside the page: same origin and cookies as the page, so it can call the site's own API as the signed-in user. Cross-origin requests work only where the other server's CORS allows the page's origin. Returns status, headers and the body (parsed JSON when the response is JSON); the body is read only up to maxLength characters (truncated: true, charsRead).",
       inputSchema: {
         tabId: tabIdParam,
-        url: z.string().min(1).describe("Absolute URL, or a path relative to the page (e.g. '/api/me')."),
+        url: z.string().min(1).max(8192).describe("Absolute URL, or a path relative to the page (e.g. '/api/me')."),
         method: z.enum(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]).default("GET").describe("HTTP method."),
-        headers: z.record(z.string(), z.string()).optional().describe("Request headers."),
-        body: z.string().optional().describe("Request body (e.g. a JSON string; set content-type in headers)."),
+        headers: z
+          .record(z.string().min(1).max(256), z.string().max(8192))
+          .refine((h) => Object.keys(h).length <= 64, "at most 64 headers")
+          .optional()
+          .describe("Request headers (up to 64)."),
+        body: z.string().max(1_000_000).optional().describe("Request body, up to 1,000,000 characters (e.g. a JSON string; set content-type in headers)."),
         responseType: z
           .enum(["auto", "json", "text"])
           .default("auto")

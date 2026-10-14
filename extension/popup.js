@@ -173,6 +173,8 @@ const I18N = {
     "Read-only: agents can read, scroll and screenshot, but not click, type, run scripts or send non-GET requests. Blocked: nothing but listing tabs. A domain covers its subdomains.",
     "Только чтение: агент читает, прокручивает и делает снимки, но не нажимает, не вводит текст, не запускает скрипты и не шлёт запросы кроме GET. Запрещён: только список вкладок. Домен включает поддомены.",
   ],
+  patternLabel: ["Site pattern", "Шаблон сайта"],
+  modeLabel: ["Access mode", "Режим доступа"],
   badPattern: ["Enter a host like x.com or *.example.com.", "Введите домен, например x.com или *.example.com."],
 };
 const tr = (key) => (I18N[key] ? I18N[key][RU ? 1 : 0] : key);
@@ -181,6 +183,7 @@ const MODE_KEYS = { full: "modeFull", "read-only": "modeReadOnly", blocked: "mod
 
 function translatePage() {
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = tr(el.dataset.i18n);
+  for (const el of document.querySelectorAll("[data-i18n-label]")) el.setAttribute("aria-label", tr(el.dataset.i18nLabel));
 }
 
 // "https://www.x.com/home" -> "www.x.com"; "*.x.com" stays.
@@ -204,9 +207,10 @@ async function savePolicy(rules) {
   renderPolicy(rules);
 }
 
-function modeSelect(value, onChange) {
+function modeSelect(value, pattern, onChange) {
   const select = document.createElement("select");
   select.className = `policy-select mode-${value}`;
+  select.setAttribute("aria-label", `${tr("modeLabel")}: ${pattern}`);
   for (const mode of MODES) {
     const opt = document.createElement("option");
     opt.value = mode;
@@ -228,7 +232,7 @@ function renderPolicy(rules) {
     pattern.className = "policy-pattern mono";
     pattern.textContent = rule.pattern;
     pattern.title = rule.pattern;
-    const select = modeSelect(rule.mode, async (mode) => {
+    const select = modeSelect(rule.mode, rule.pattern, async (mode) => {
       const next = await loadPolicy();
       if (next[i]) next[i] = { ...next[i], mode };
       await savePolicy(next);
