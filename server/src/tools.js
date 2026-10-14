@@ -197,6 +197,47 @@ export function registerTools(server, bridge) {
   );
 
   server.registerTool(
+    "browser_open_tab",
+    {
+      title: "Open a new tab",
+      description:
+        "Open a URL in a new browser tab and return its id. The tab opens in the background unless active is true, so the user's current tab keeps focus.",
+      inputSchema: {
+        url: z.string().url().describe("The URL to open."),
+        active: z.boolean().optional().describe("Switch to the new tab (default false)."),
+      },
+    },
+    async ({ url, active }) => {
+      try {
+        const result = await bridge.request("openTab", { url, active: active === true });
+        return text(result);
+      } catch (err) {
+        return errorText(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "browser_close_tab",
+    {
+      title: "Close a tab",
+      description:
+        "Close a tab that was opened with browser_open_tab. Tabs the user opened can't be closed.",
+      inputSchema: {
+        tabId: z.number().int().describe("Id returned by browser_open_tab."),
+      },
+    },
+    async ({ tabId }) => {
+      try {
+        const result = await bridge.request("closeTab", { tabId });
+        return text(result);
+      } catch (err) {
+        return errorText(err);
+      }
+    }
+  );
+
+  server.registerTool(
     "browser_execute_script",
     {
       title: "Execute JavaScript on the page",

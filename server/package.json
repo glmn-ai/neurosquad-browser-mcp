@@ -1,6 +1,6 @@
 {
   "name": "webmcp-server",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "NeuroSquad Browser MCP (formerly WebMCP): MCP server bridging AI coding agents to a Chrome extension for browser page inspection/automation",
   "type": "module",
   "main": "src/index.js",

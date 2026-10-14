@@ -45,13 +45,15 @@ sessions are attached, and the server and extension versions.
 | `browser_click` | Click the first element matching a CSS selector. |
 | `browser_fill` | Set the value of an input, textarea or contenteditable and fire `input`/`change`. |
 | `browser_navigate` | Navigate a tab to a URL. |
+| `browser_open_tab` | Open a URL in a new tab (in the background unless `active: true`) and return its id. |
+| `browser_close_tab` | Close a tab opened with `browser_open_tab`; the user's own tabs can't be closed. |
 | `browser_execute_script` | Run JavaScript in the page's own context and return the result. |
 | `browser_upload_files` | Put local files into an `<input type=file>` (attachments, uploads). |
 | `browser_screenshot` | PNG screenshot of the visible area of a tab. |
 | `browser_get_console_logs` | Buffered `console.*` output and uncaught errors of a tab. |
 | `browser_connection_status` | Whether the extension is connected, plus this server's role (`hub`/`peer`), the hub pid and the number of peers. |
 
-Every tool takes an optional `tabId`; without it, the active tab of the last focused window is used.
+Every tool except `browser_list_tabs`, `browser_open_tab`, `browser_close_tab` and `browser_connection_status` takes an optional `tabId`; without it, the active tab of the last focused window is used.
 
 ## Install
 
