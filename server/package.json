@@ -21,10 +21,10 @@
   "author": "Stanislav Gelman and NeuroSquad contributors",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "jsonc-parser": "^3.3.1",
     "ws": "^8.22.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "homepage": "https://github.com/glmn-ai/neurosquad-browser-mcp#readme",
   "repository": {
